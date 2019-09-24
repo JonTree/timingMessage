@@ -1,0 +1,63 @@
+buildscript {
+    ext.kotlin_version = '1.3.50'
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+plugins {
+    id 'java'
+}
+
+/**添加两行代码,指出导出的是程序*/
+apply plugin: 'application'
+apply plugin: 'kotlin'
+//尽管包名为Counter.kt,但这里指出类为CounterKt
+mainClassName = 'MainKt'
+
+
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    implementation 'com.github.hydevelop:PicqBotX:4.10.1.928'
+    implementation 'com.google.code.gson:gson:2.8.5'
+    // https://mvnrepository.com/artifact/org.apache.poi/poi
+    implementation group: 'org.apache.poi', name: 'poi', version: '4.1.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+
+}
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+
+
+//jar {
+//    manifest {
+//        attributes "Main-Class": "MainKt"
+//    }
+//    from {
+//        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+//    }
+//}
+
+
+
+
