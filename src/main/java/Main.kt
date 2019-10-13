@@ -6,10 +6,14 @@ import cc.moecraft.icq.PicqBotX
 import cc.moecraft.icq.sender.IcqHttpApi
 import listen.AskForLeaveEventPrivateMessage
 import tool.AssistantUtil
+import java.io.File
 import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParsePosition
+import java.lang.Integer
+
+
 
 
 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")// 格式化时间
@@ -20,14 +24,18 @@ val 实验室助理群 = 436641186.toLong()
 val 其他助理群 = 286199556.toLong()
 
 
-fun main() {
-    while (true) {
 
-        try {
+
+
+fun main() {
+    val process =  Runtime.getRuntime().exec("git clone git@github.com:Treeeeeeee/LeaveDate.git")
+    process.waitFor()
+    while (true) {
+//        try {
             // 创建机器人对象 ( 传入配置 )
             val bot = PicqBotX(PicqConfig(31092))
             // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
-            bot.addAccount("test", "127.0.0.1", 31091)
+            bot.addAccount("test", "127.0.0.1", 5700)
             Thread {
                 while (true) {
                     val date = Date()// 获取当前时间
@@ -47,13 +55,13 @@ fun main() {
             // 启动机器人, 不会占用主线程
             bot.startBot()
             Thread.sleep(Long.MAX_VALUE)
-        } catch (e: Exception) {
-
-        } finally {
-            println("发生未知错误，自动重启")
-            Thread.sleep(1000 * 5)
-            continue
-        }
+//        } catch (e: Exception) {
+//
+//        } finally {
+//            println("发生未知错误，自动重启")
+//            Thread.sleep(1000 * 5)
+//            continue
+//        }
     }
 }
 
@@ -77,8 +85,9 @@ private fun 实验室助理(bot: PicqBotX, group: Long) {
                     值班人员位置和信息添加("实验室", stringBuilder, splitLine, students)
                     值班消息末尾(stringBuilder)
                     icqHttpApi.sendGroupMsg(group, stringBuilder.toString())
+                    icqHttpApi.sendGroupMsg(group, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")
                     icqHttpApi.sendGroupMsg(451094615, stringBuilder.toString())//测试群
-
+                    icqHttpApi.sendGroupMsg(451094615, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")//测试群
                     寻找此班次请假的处理(listOf("实验室"), time, dayForTime, icqHttpApi, group)
                 }
             }
@@ -117,7 +126,6 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
                         值班人员位置和信息添加("学工办", stringBuilder, splitLine, turnA?.map { AssistantUtil.assistantDateList[it] })
 
                         值班人员位置和信息添加("院办", stringBuilder, splitLine, turnC?.map { AssistantUtil.assistantDateList[it] })
-
 
                         值班消息末尾(stringBuilder)
 

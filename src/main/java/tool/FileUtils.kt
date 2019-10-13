@@ -20,7 +20,7 @@ object FileUtils {
 
     fun writeFile(content:String) {
 //        val currentDir = System.getProperty("user.dir") + "\\out"
-        val currentDir = """C:\data\请假数据"""
+        val currentDir = """LeaveDate"""
         val file = File(currentDir, "leaveData.txt")
         file.writeText(content)
 //        println(file.readText())
@@ -47,7 +47,7 @@ object FileUtils {
     fun readStudentDataExcel() {
 //        val fsv = FileSystemView.getFileSystemView()
 //        val desktop = fsv.homeDirectory.path
-        val filePath = """C:\data\请假数据\StudentsDate.xls"""
+        val filePath = """LeaveDate/StudentsDate.xls"""
 
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
@@ -136,7 +136,7 @@ object FileUtils {
 
 
     fun readFile():String{
-        val filename = """C:\data\请假数据\leaveData.txt"""
+        val filename = """LeaveDate/leaveData.txt"""
         val file = File(filename)
         return file.readText()
 //        println(contents)

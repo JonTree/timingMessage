@@ -163,21 +163,20 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     synchronized(it) {
                         val leaveDatasEntity = leaveQueue[assistantStudent.name]?.lambda?.invoke()
 
-//                        val date = strToDate(leaveDatasEntity?.timestamp?:"")
-//
-//                        if (assistantStudent.type == "实验室助理") {
-//                            val stringBuilder = StringBuilder()
-//                            stringBuilder.append("【${assistantStudent.name}】")
-//                            stringBuilder.append("有事请假，请各位老师注意")
-//                            eventPrivateMessage.httpApi.sendGroupMsg(436641186, stringBuilder.toString())
-//                            eventPrivateMessage.httpApi.sendGroupMsg(451094615, stringBuilder.toString())
-//
-//                        } else {
-//                            val stringBuilder = StringBuilder()
-//                            stringBuilder.append("【${assistantStudent.name}】")
-//                            stringBuilder.append("有事请假，请各位老师注意")
-//                            eventPrivateMessage.httpApi.sendGroupMsg(286199556, stringBuilder.toString())
-//                        }
+                        val date = strToDate(leaveDatasEntity?.timestamp?:"")
+                        if (assistantStudent.type == "实验室助理") {
+                            val stringBuilder = StringBuilder()
+                            stringBuilder.append("【${assistantStudent.name}】")
+                            stringBuilder.append("有事请假，请各位老师注意")
+                            eventPrivateMessage.httpApi.sendGroupMsg(436641186, stringBuilder.toString())
+                            eventPrivateMessage.httpApi.sendGroupMsg(451094615, stringBuilder.toString())
+
+                        } else {
+                            val stringBuilder = StringBuilder()
+                            stringBuilder.append("【${assistantStudent.name}】")
+                            stringBuilder.append("有事请假，请各位老师注意")
+                            eventPrivateMessage.httpApi.sendGroupMsg(286199556, stringBuilder.toString())
+                        }
                         leaveQueue.remove(assistantStudent.name)
                         return@请假流程
                     }
@@ -210,6 +209,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     AssistantUtil.leaveDataBean.leaveDatas.add(leaveDatasEntity)
                     FileUtils.writeFile(gson.toJson(AssistantUtil.leaveDataBean))
                     eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "请假成功")
+                    Runtime.getRuntime().exec("sh /LeaveDate/push.sh > out.txt")
                     leaveDatasEntity
                 }
 
