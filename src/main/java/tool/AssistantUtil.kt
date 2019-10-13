@@ -49,7 +49,7 @@ object AssistantUtil {
 
 
         //院办助理
-        collegeWatchList[11] = listOf("周庚辰","钱瀛天")
+        collegeWatchList[11] = listOf("谭林","杨婷婷")
         collegeWatchList[12] = listOf("番能赞","邱川江")
         collegeWatchList[13] = listOf("金泽旺")
         collegeWatchList[14] = listOf("凤余","张宇")

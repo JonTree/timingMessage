@@ -20,7 +20,7 @@ object FileUtils {
 
     fun writeFile(content:String) {
 //        val currentDir = System.getProperty("user.dir") + "\\out"
-        val currentDir = """C:\data\请假数据"""
+        val currentDir = """LeaveDate"""
         val file = File(currentDir, "leaveData.txt")
         file.writeText(content)
 //        println(file.readText())
@@ -43,11 +43,52 @@ object FileUtils {
         println(file.readText())
     }
 
+    fun readOnDutyDataExcel() {
+        val filePath = """LeaveDate/OnDutyDate.xls"""
+
+        val fileInputStream = FileInputStream(filePath)
+        val bufferedInputStream = BufferedInputStream(fileInputStream)
+        val fileSystem = POIFSFileSystem(bufferedInputStream)
+        val workbook = HSSFWorkbook(fileSystem)
+
+        val sheet = workbook.getSheetAt(0)
+
+        val lastRowIndex = sheet.lastRowNum
+        for (i in 1..lastRowIndex) {
+            val row = sheet.getRow(i) ?: break
+            val lastCellNum = row.lastCellNum
+            var 是否记录本行 = false
+            for (j in 0 until lastCellNum) {
+                if (row.getCell(j) != null) {
+                    是否记录本行 = true
+                }
+                row.getCell(j)?.cellType = CellType.STRING
+            }
+            if (是否记录本行) {
+                row.getCell(2)?.let {
+                    AssistantUtil.assistantDateList[it.stringCellValue] =
+                            AssistantStudent().apply {
+                                for (j in 0 until lastCellNum) {
+                                    row.getCell(j)?.let {
+                                        val p = Pattern.compile("[\\u2E80-\\u9FFF0-9a-zA-Z]+")
+                                        val m = p.matcher(it.stringCellValue)
+                                        if (m.find()) {
+                                            this[j] = m.group(0)
+                                        }
+                                    }
+                                }
+                                print("")
+                            }
+                }
+            }
+        }
+        bufferedInputStream.close()
+    }
+
 
     fun readStudentDataExcel() {
-//        val fsv = FileSystemView.getFileSystemView()
-//        val desktop = fsv.homeDirectory.path
-        val filePath = """C:\data\请假数据\StudentsDate.xls"""
+
+        val filePath = """LeaveDate/StudentsDate.xls"""
 
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
@@ -136,27 +177,9 @@ object FileUtils {
 
 
     fun readFile():String{
-        val filename = """C:\data\请假数据\leaveData.txt"""
+        val filename = """LeaveDate/leaveData.txt"""
         val file = File(filename)
         return file.readText()
-//        println(contents)
-//
-//        //大写前三行
-//        file.readLines().take(3).forEach {
-//            println(it.toUpperCase())
-//        }
-//
-//        //直接处理行
-//        file.forEachLine(action = ::println)
-//
-//        //读取为bytes
-//        val bytes: ByteArray = file.readBytes()
-//        println(bytes.joinToString(separator = ""))
-//
-//        //直接处理Reader或InputStream
-//        val reader: Reader = file.reader()
-//        val inputStream: InputStream = file.inputStream()
-//        val bufferedReader: BufferedReader = file.bufferedReader()
     }
 
 }
