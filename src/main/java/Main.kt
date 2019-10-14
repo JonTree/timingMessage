@@ -23,15 +23,11 @@ const val splitLine = "-------------------\n"
 val 实验室助理群 = 436641186.toLong()
 val 其他助理群 = 286199556.toLong()
 
-
-
-
+val currentDutyPersons = mutableListOf<String>()
 
 fun main() {
-    val process =  Runtime.getRuntime().exec("git clone git@github.com:Treeeeeeee/LeaveDate.git")
-    process.waitFor()
     while (true) {
-//        try {
+        try {
             // 创建机器人对象 ( 传入配置 )
             val bot = PicqBotX(PicqConfig(31092))
             // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
@@ -55,18 +51,19 @@ fun main() {
             // 启动机器人, 不会占用主线程
             bot.startBot()
             Thread.sleep(Long.MAX_VALUE)
-//        } catch (e: Exception) {
-//
-//        } finally {
-//            println("发生未知错误，自动重启")
-//            Thread.sleep(1000 * 5)
-//            continue
-//        }
+        } catch (e: Exception) {
+
+        } finally {
+            println("发生未知错误，自动重启")
+            Thread.sleep(1000 * 5)
+            continue
+        }
     }
 }
 
 private fun 实验室助理(bot: PicqBotX, group: Long) {
     var sentTime: String = ""
+    val dutyPersons = mutableListOf<String>()
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
@@ -79,6 +76,16 @@ private fun 实验室助理(bot: PicqBotX, group: Long) {
                 if (sentTime != t) {
                     sentTime = t
                     val students = turn.map { AssistantUtil.assistantDateList[it] }
+                    for (person in dutyPersons) {
+                        currentDutyPersons.remove(person)
+                    }
+                    dutyPersons.clear()
+                    for (student in students) {
+                        student?.let {
+                            dutyPersons.add(student.name)
+                            currentDutyPersons.add(student.name)
+                        }
+                    }
                     val stringBuilder = java.lang.StringBuilder()
                     stringBuilder.append("今天第${dayForTime}轮值班\n" +
                             "时间：${AssistantUtil.period(dayForTime)}\n")
@@ -99,6 +106,7 @@ private fun 实验室助理(bot: PicqBotX, group: Long) {
 
 private fun 其他助理(bot: PicqBotX, group: Long) {
     var sentTime: String = ""
+    val dutyPersons = mutableListOf<String>()
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
@@ -120,13 +128,24 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
                     stringBuilder.apply {
                         append("今天第${dayForTime}轮值班\n时间：${AssistantUtil.period(dayForTime)}\n")
                         append(splitLine)
+                        val students = LinkedList<AssistantStudent?>()
 
-                        值班人员位置和信息添加("学籍办", stringBuilder, splitLine, turnS?.map { AssistantUtil.assistantDateList[it] })
+                        值班人员位置和信息添加("学籍办", stringBuilder, splitLine, turnS?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
-                        值班人员位置和信息添加("学工办", stringBuilder, splitLine, turnA?.map { AssistantUtil.assistantDateList[it] })
+                        值班人员位置和信息添加("学工办", stringBuilder, splitLine, turnA?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
-                        值班人员位置和信息添加("院办", stringBuilder, splitLine, turnC?.map { AssistantUtil.assistantDateList[it] })
+                        值班人员位置和信息添加("院办", stringBuilder, splitLine, turnC?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
+                        for (person in dutyPersons) {
+                            currentDutyPersons.remove(person)
+                        }
+                        dutyPersons.clear()
+                        for (student in students) {
+                            student?.let {
+                                dutyPersons.add(student.name)
+                                currentDutyPersons.add(student.name)
+                            }
+                        }
                         值班消息末尾(stringBuilder)
 
                     }
@@ -145,7 +164,7 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
 private fun 初始化当前数据(): Triple<String, Int, Int> {
     Thread.sleep(2000)
     val date = Date()// 获取当前时间
-//    val time = "2019-09-24 10:00:00"//测试语句
+//    val time = "2019-10-14 13:45:00"//测试语句
     val time = dateFormat.format(date)
 //    val dayForWeek = 2//测试语句
 //    val dayForTime = 2//测试语句

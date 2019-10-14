@@ -18,8 +18,6 @@ import bean.LeaveQueueMessage
 import java.io.File
 import java.lang.Exception
 import java.lang.StringBuilder
-import java.lang.invoke.SerializedLambda
-import java.net.SocketTimeoutException
 
 
 class AskForLeaveEventPrivateMessage : IcqListener() {
@@ -33,15 +31,16 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     @EventHandler
     fun saveTheLeaveEvent(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.message) {
-            "请假文档" -> 处理文档请求消息(eventPrivateMessage)
-            "补登请假" -> 处理补登请假提示文本(eventPrivateMessage)
-            else -> 请假流程(eventPrivateMessage)
+            "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
+            "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
+            else -> leaveProcess(eventPrivateMessage)
         }
 
     }
 
 
-    fun 处理补登请假提示文本(eventPrivateMessage: EventPrivateMessage) {
+    //处理补登请假提示文本
+    private fun handlingTheLeaveRequestText(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
             刘旭的QQ, 刘星的QQ, 我的qq -> {
                 val dateFormat = SimpleDateFormat()// 格式化时间
@@ -60,7 +59,8 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         }
     }
 
-    fun 处理文档请求消息(eventPrivateMessage: EventPrivateMessage) {
+    //处理文档请求消息
+    private fun processingDocumentRequestMessage(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
             刘旭的QQ, 刘星的QQ, 我的qq -> {
                 createExcel()
@@ -79,12 +79,12 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         }
     }
 
-    fun 请假流程(eventPrivateMessage: EventPrivateMessage) {
+    //请假流程
+    private fun leaveProcess(eventPrivateMessage: EventPrivateMessage) {
         //补登请假
         val p = Pattern.compile("请假人学号：.*[0-9]+.*\r*\n请假事由：.+\r*\n请假班次：20..年..月..日第[1357][2468]节课.*")
         val m = p.matcher(eventPrivateMessage.message)
         if (m.matches()) {
-            val str = eventPrivateMessage.message
             var student: AssistantStudent? = null
             val mmS = Pattern
                     .compile("[0-9]+")
@@ -126,7 +126,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             }
         } else {
             val p2 = Pattern.compile("请假人学号.+\r*请假事由.+\r*请假班次.+")
-            val m2 = p.matcher(eventPrivateMessage.message)
+            val m2 = p2.matcher(eventPrivateMessage.message)
             if (m2.find()) {
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                         "补登正文貌似格式有点问题，按照标准复制改改吧" +
@@ -146,6 +146,16 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             return
         }
 
+
+        if (senderId == 刘星的QQ) {
+            eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                    "功能：（发送功能名称即可）" +
+                    "1.补登请假\n" +
+                    "2.请假文档（服务器有问题，我有时间再修，你要请假文档可以直接找我（丁）要）")
+            return
+        }
+
+
         var student: AssistantStudent? = null
 
 
@@ -161,24 +171,51 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             if ("是" == eventPrivateMessage.message) {
                 leaveQueue[assistantStudent.name]?.let {
                     synchronized(it) {
-                        val leaveDatasEntity = leaveQueue[assistantStudent.name]?.lambda?.invoke()
+                        leaveQueue[assistantStudent.name]?.lambda?.invoke()?.let { leaveDatasEntity ->
+                            var date: Calendar? = null
+                            Calendar.getInstance().apply {
+                                time = strToDate(leaveDatasEntity?.timestamp ?: "")
+                                date = this
+                            }
+                            val today: Calendar? = null
+                            Calendar.getInstance().apply {
+                                time = Date()
+                                date = this
+                            }
 
-                        val date = strToDate(leaveDatasEntity?.timestamp?:"")
-                        if (assistantStudent.type == "实验室助理") {
-                            val stringBuilder = StringBuilder()
-                            stringBuilder.append("【${assistantStudent.name}】")
-                            stringBuilder.append("有事请假，请各位老师注意")
-                            eventPrivateMessage.httpApi.sendGroupMsg(436641186, stringBuilder.toString())
-                            eventPrivateMessage.httpApi.sendGroupMsg(451094615, stringBuilder.toString())
-
-                        } else {
-                            val stringBuilder = StringBuilder()
-                            stringBuilder.append("【${assistantStudent.name}】")
-                            stringBuilder.append("有事请假，请各位老师注意")
-                            eventPrivateMessage.httpApi.sendGroupMsg(286199556, stringBuilder.toString())
+                            if (today?.get(Calendar.DAY_OF_MONTH) == date?.get(Calendar.DAY_OF_MONTH)) {
+                                if (assistantStudent.type == "实验室助理") {
+                                    val stringBuilder = StringBuilder()
+                                    eventPrivateMessage.httpApi.sendPrivateMsg(我的qq, "" +
+                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                            leaveDatasEntity.content)
+                                    stringBuilder.append("【${assistantStudent.name}】")
+                                    stringBuilder.append("临时请假，请各位老师注意\n")
+                                    eventPrivateMessage.httpApi.sendGroupMsg(436641186, stringBuilder.toString())
+                                    eventPrivateMessage.httpApi.sendGroupMsg(451094615, stringBuilder.toString())
+                                } else {
+                                    eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
+                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                            leaveDatasEntity.content)
+                                    val stringBuilder = StringBuilder()
+                                    stringBuilder.append("【${assistantStudent.name}】")
+                                    stringBuilder.append("临时请假，请各位老师注意")
+                                    eventPrivateMessage.httpApi.sendGroupMsg(286199556, stringBuilder.toString())
+                                }
+                            }
+                            if (assistantStudent.type == "实验室助理") {
+                                eventPrivateMessage.httpApi.sendPrivateMsg(我的qq, "" +
+                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                        leaveDatasEntity.content)
+                            } else {
+                                eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
+                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                        leaveDatasEntity.content)
+                            }
+                            leaveQueue.remove(assistantStudent.name)
+                            return@leaveProcess
                         }
-                        leaveQueue.remove(assistantStudent.name)
-                        return@请假流程
+
                     }
                 }
             }
@@ -209,7 +246,6 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     AssistantUtil.leaveDataBean.leaveDatas.add(leaveDatasEntity)
                     FileUtils.writeFile(gson.toJson(AssistantUtil.leaveDataBean))
                     eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "请假成功")
-                    Runtime.getRuntime().exec("sh /LeaveDate/push.sh > out.txt")
                     leaveDatasEntity
                 }
 
@@ -238,7 +274,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                                 "【提示】第XX节课当中的XX务必在：\n12，34，56，78\n" +
                                 "这四个选项中选择" +
                                 "\n******************\n" +
-                                "可直接复制以下模板更改").trimMargin()
+                                "可直接复制以下模板更改\n").trimMargin()
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, massage)
                 val dateFormat = SimpleDateFormat()// 格式化时间
                 dateFormat.applyPattern("yyyy年MM月dd日")// a为am/pm的标记
@@ -246,6 +282,8 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 val time = dateFormat.format(date)
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                         "${time}第XX节课时间段值班请假，事由：")
+                eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                        "请给出合理事由，请假成功之后消息会被实时发送到管理者的qq里，若事由太过随意，会根据情况降低你的最终评价，从而影响时长或者每月补贴")
             }
         }
 
@@ -277,7 +315,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             val date = sdf.parse(str);
             return date;
-        }else{
+        } else {
             return null
 
         }

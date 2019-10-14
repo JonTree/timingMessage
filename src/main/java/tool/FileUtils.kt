@@ -1,31 +1,24 @@
 package tool
 
 import bean.AssistantStudent
-import org.apache.poi.hssf.usermodel.HSSFDataFormat
-import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.poifs.filesystem.POIFSFileSystem
 import org.apache.poi.ss.usermodel.CellType
 import java.io.*
-import java.util.*
 import java.util.regex.Pattern
-import javax.swing.filechooser.FileSystemView
-import org.apache.poi.ss.usermodel.CellStyle
-import org.apache.poi.hssf.record.cf.BorderFormatting.BORDER_THIN
 import org.apache.poi.ss.usermodel.HorizontalAlignment
 
 
 object FileUtils {
 
 
-    fun writeFile(content:String) {
+    fun writeFile(content: String) {
 //        val currentDir = System.getProperty("user.dir") + "\\out"
-        val currentDir = """LeaveDate"""
+        val currentDir = """Data"""
         val file = File(currentDir, "leaveData.txt")
         file.writeText(content)
 //        println(file.readText())
 
-//
 //        //直接使用writer和outputstream
 //        val writer: Writer = file.writer()
 //        val outputStream: OutputStream = file.outputStream()
@@ -43,11 +36,63 @@ object FileUtils {
         println(file.readText())
     }
 
+    fun readOnDutyDataExcel() {
+        val filePath = """Data/OnDutyDate.xls"""
+
+        val fileInputStream = FileInputStream(filePath)
+        val bufferedInputStream = BufferedInputStream(fileInputStream)
+        val fileSystem = POIFSFileSystem(bufferedInputStream)
+        val workbook = HSSFWorkbook(fileSystem)
+
+        for (sheetIndex in 0 until workbook.numberOfSheets) {
+            val sheet = workbook.getSheetAt(sheetIndex)
+            val place = AssistantUtil.lookingForAPlaceToWork(sheet.sheetName)
+            place?.let {
+                val lastRowIndex = sheet.lastRowNum
+                val rowLimit = 2
+                var rowignore = 0
+                var turnIndex = 0
+                for (i in 2..lastRowIndex) {
+                    if (rowignore % rowLimit == 0) {
+                        turnIndex++
+                    }
+                    val row = sheet.getRow(i) ?: break
+                    val lastCellNum = row.lastCellNum
+                    var 是否记录本行 = false
+                    for (j in 1 until lastCellNum) {
+                        if (row.getCell(j) != null) {
+                            是否记录本行 = true
+                        }
+                        row.getCell(j)?.cellType = CellType.STRING
+                    }
+                    if (是否记录本行) {
+                        val limit = 3
+                        var ignore = 0
+                        var index = 1
+                        for (j in 1 until lastCellNum) {
+                            if (ignore % limit == 0) {
+                                val data = row.getCell(j).stringCellValue
+                                val p = Pattern.compile("[\\u2E80-\\u9FFF]+")
+                                val m = p.matcher(data)
+                                if (m.find()) {
+                                    val name = m.group(0)
+                                    place[("$index$turnIndex").toInt()]?.add(name)
+                                }
+                                index++
+                            }
+                            ignore++
+                        }
+                    }
+                    rowignore++
+                }
+            }
+        }
+        bufferedInputStream.close()
+    }
+
 
     fun readStudentDataExcel() {
-//        val fsv = FileSystemView.getFileSystemView()
-//        val desktop = fsv.homeDirectory.path
-        val filePath = """LeaveDate/StudentsDate.xls"""
+        val filePath = """Data/StudentsDate.xls"""
 
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
@@ -69,18 +114,17 @@ object FileUtils {
             if (是否记录本行) {
                 row.getCell(2)?.let {
                     AssistantUtil.assistantDateList[it.stringCellValue] =
-                    AssistantStudent().apply {
-                        for (j in 0 until lastCellNum) {
-                            row.getCell(j)?.let {
-                                val p = Pattern.compile("[\\u2E80-\\u9FFF0-9a-zA-Z]+")
-                                val m = p.matcher(it.stringCellValue)
-                                if (m.find()) {
-                                    this[j] = m.group(0)
+                            AssistantStudent().apply {
+                                for (j in 0 until lastCellNum) {
+                                    row.getCell(j)?.let {
+                                        val p = Pattern.compile("[\\u2E80-\\u9FFF0-9a-zA-Z]+")
+                                        val m = p.matcher(it.stringCellValue)
+                                        if (m.find()) {
+                                            this[j] = m.group(0)
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        print("")
-                    }
                 }
             }
         }
@@ -106,7 +150,7 @@ object FileUtils {
 
 
         for (i in AssistantUtil.leaveDataBean.leaveDatas) {
-            val row1 = sheet.createRow(AssistantUtil.leaveDataBean.leaveDatas.indexOf(i)+1)
+            val row1 = sheet.createRow(AssistantUtil.leaveDataBean.leaveDatas.indexOf(i) + 1)
             row1.createCell(0).setCellValue(i.type)
             row1.createCell(1).setCellValue(i.studentID)
             row1.createCell(2).setCellValue(i.name)
@@ -124,7 +168,7 @@ object FileUtils {
 
         for (i in 0 until 6) {
             sheet.autoSizeColumn(i);//先设置自动列宽
-            sheet.setColumnWidth(i,sheet.getColumnWidth(i)*17/10);//设置列宽为自动列宽的1.7倍（当然不是严格的1.7倍，int的除法恕不再讨论），这个1.6左右也可以，这是本人测试的经验值*
+            sheet.setColumnWidth(i, sheet.getColumnWidth(i) * 17 / 10);//设置列宽为自动列宽的1.7倍（当然不是严格的1.7倍，int的除法恕不再讨论），这个1.6左右也可以，这是本人测试的经验值*
         }
 
         workbook.setActiveSheet(0)
@@ -133,30 +177,10 @@ object FileUtils {
     }
 
 
-
-
-    fun readFile():String{
-        val filename = """LeaveDate/leaveData.txt"""
+    fun readFile(): String {
+        val filename = """Data/leaveData.txt"""
         val file = File(filename)
         return file.readText()
-//        println(contents)
-//
-//        //大写前三行
-//        file.readLines().take(3).forEach {
-//            println(it.toUpperCase())
-//        }
-//
-//        //直接处理行
-//        file.forEachLine(action = ::println)
-//
-//        //读取为bytes
-//        val bytes: ByteArray = file.readBytes()
-//        println(bytes.joinToString(separator = ""))
-//
-//        //直接处理Reader或InputStream
-//        val reader: Reader = file.reader()
-//        val inputStream: InputStream = file.inputStream()
-//        val bufferedReader: BufferedReader = file.bufferedReader()
     }
 
 }
