@@ -47,6 +47,7 @@ fun main() {
 
             实验室助理(bot, 实验室助理群)
             其他助理(bot, 其他助理群)
+        禁言处理(bot, 483100546)
 
             bot.eventManager.registerListeners(
                     AskForLeaveEventPrivateMessage()
@@ -63,6 +64,19 @@ fun main() {
 //            continue
 //        }
     }
+}
+
+private fun 禁言处理(bot: PicqBotX, group: Long) {
+    val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
+    val list = listOf(
+            "梯子",
+            "vpn"
+            )
+
+    val date = icqHttpApi.getGroupMemberList(group)
+    println()
+//    icqHttpApi.setGroupBan()
+
 }
 
 private fun 实验室助理(bot: PicqBotX, group: Long) {
