@@ -186,7 +186,7 @@ private fun otherAssistant(bot: PicqBotX, group: Long) {
 private fun initializeCurrentData(): Triple<String, Int, Int> {
     Thread.sleep(2000)
     val date = Date()// 获取当前时间
-//    val time = "2019-10-14 13:45:00"//测试语句
+//    val time = "2019-10-22 13:45:00"//测试语句
     val time = dateFormat.format(date)
 //    val dayForWeek = 2//测试语句
 //    val dayForTime = 2//测试语句
