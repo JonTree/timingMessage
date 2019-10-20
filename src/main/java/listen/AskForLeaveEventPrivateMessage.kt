@@ -1,9 +1,8 @@
 package listen
 
-import bean.AssistantStudent
+import bean.*
 import tool.AssistantUtil
 import tool.FileUtils
-import bean.LeaveDataBean
 import tool.ThreadPoolUtils
 import cc.moecraft.icq.event.EventHandler
 import cc.moecraft.icq.event.IcqListener
@@ -14,27 +13,395 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.regex.Pattern
 import kotlin.collections.HashMap
-import bean.LeaveQueueMessage
+import cc.moecraft.icq.event.events.message.EventGroupMessage
+import tool.MFile
 import java.io.File
 import java.lang.Exception
 import java.lang.StringBuilder
+import java.net.URLEncoder
+import kotlin.random.asKotlinRandom
 
+
+var forbiddenKeywordList = mutableListOf<String>()
+var entertainmentMessageRankingList = LinkedList<娱乐禁言Bean>()
+
+var repeatCount = 6
+var badRepeatCount = 4
 
 class AskForLeaveEventPrivateMessage : IcqListener() {
 
     private val leaveQueue = HashMap<String, LeaveQueueMessage>()
 
+    //关键词添加消息队列
+    private val keywordsAddMessageQueue = HashMap<Long, KeywordMessage>()
+
+
     val 刘星的QQ = 1623044256.toLong()
     val 刘旭的QQ = 2108372936.toLong()
     val 我的qq = 1246634075.toLong()
 
+    //关键字添加者
+    val keywordAdder = listOf(
+            1044805408.toLong(),
+            1142013327.toLong(),
+            897598260.toLong(),
+            1246634075.toLong(),
+            619750063.toLong(),
+            815024038.toLong(),
+            844742916.toLong()
+    )
+
+
     @EventHandler
     fun saveTheLeaveEvent(eventPrivateMessage: EventPrivateMessage) {
-        when (eventPrivateMessage.message) {
-            "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
-            "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
-            else -> leaveProcess(eventPrivateMessage)
+        //是否是关键字添加者
+        var isItAKeywordAdder = false
+        for (i in keywordAdder) {
+            isItAKeywordAdder = (eventPrivateMessage.senderId == i)
+            if (isItAKeywordAdder) {
+                break
+            }
         }
+        if (isItAKeywordAdder) {
+            keywordAdderMessageProcessing(eventPrivateMessage)
+        } else {
+            when (eventPrivateMessage.message) {
+                "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
+                "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
+                else -> leaveProcess(eventPrivateMessage)
+            }
+        }
+    }
+
+
+    //娱乐复读消息收集
+    val repeatBanList = LinkedList<RepeatData>()
+
+    //恶劣复读消息收集
+    val badSingleRepeat = LinkedList<RepeatData>()
+//        val group = 451094615.toLong()//哒哒群
+    val group = 483100546.toLong()//安卓群
+    //    val group = 913874135.toLong()//测试群
+
+    //关键词禁言
+    @EventHandler
+    fun keyWordsBan(eventGroupMessage: EventGroupMessage) {
+        if (eventGroupMessage.groupId == group) {
+            if (娱乐禁言条数更改命令(eventGroupMessage)) return
+            if (恶劣复读条数更改(eventGroupMessage)) return
+            if (功能命令处理(eventGroupMessage)) return
+            //搜索引擎
+            if (searchEngine(eventGroupMessage)) return
+
+            if (封神榜命令(eventGroupMessage)) return
+            //恶劣禁言
+            if (恶劣禁言处理(eventGroupMessage)) return
+
+            娱乐禁言处理(eventGroupMessage)
+            //禁言关键字List
+            敏感关键字处理(eventGroupMessage)
+        }
+    }
+
+    private fun 恶劣禁言处理(eventGroupMessage: EventGroupMessage): Boolean {
+        badSingleRepeat.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
+        if (badSingleRepeat.size > 1) {
+            return if (badSingleRepeat[0].qqnum == badSingleRepeat.last.qqnum && badSingleRepeat[0].str == badSingleRepeat.last.str) {
+                if (badSingleRepeat.size >= badRepeatCount) {
+                    eventGroupMessage.httpApi.setGroupBan(group, badSingleRepeat[0].qqnum, 60 * 10)
+                    eventGroupMessage.httpApi.sendGroupMsg(group, "[CQ:at,qq=${badSingleRepeat[0].qqnum}]恶劣复读")
+                    badSingleRepeat.clear()
+                }
+                true
+            } else {
+                badSingleRepeat.clear()
+                false
+            }
+        }
+        return false
+    }
+
+    private fun 恶劣复读条数更改(eventGroupMessage: EventGroupMessage): Boolean {
+        val p = Pattern.compile("#恶劣复读禁言条数.")
+        val m = p.matcher(eventGroupMessage.message)
+        if (m.lookingAt()) {
+            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
+                val str = eventGroupMessage.message.substringAfter("#恶劣复读禁言条数").substring(1)
+                val mp = Pattern.compile("\\d+")
+                val mm = mp.matcher(str)
+                if (mm.find()) {
+                    val count = mm.group(0).toInt()
+                    if (count in 4..59) {
+                        badRepeatCount = count
+                        eventGroupMessage.respond("设置成功:$badRepeatCount")
+                        MFile.saveToFile("Data/复读条数设置.txt", Gson().toJson(CountData(repeatCount, badRepeatCount)))
+                    } else {
+                        eventGroupMessage.respond("请设置4到50之间的数")
+                    }
+                }
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun 娱乐禁言条数更改命令(eventGroupMessage: EventGroupMessage): Boolean {
+        val p = Pattern.compile("#娱乐禁言条数.")
+        val m = p.matcher(eventGroupMessage.message)
+        if (m.lookingAt()) {
+            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
+                val str = eventGroupMessage.message.substringAfter("#娱乐禁言条数").substring(1)
+                val mp = Pattern.compile("\\d+")
+                val mm = mp.matcher(str)
+                if (mm.find()) {
+                    val count = mm.group(0).toInt()
+                    if (count in 4..50) {
+                        repeatCount = count
+                        eventGroupMessage.respond("设置成功:$repeatCount")
+                        MFile.saveToFile("Data/复读条数设置.txt", Gson().toJson(CountData(repeatCount, badRepeatCount)))
+                    } else {
+                        eventGroupMessage.respond("请设置4到50之间的数")
+                    }
+                }
+            } else {
+                eventGroupMessage.respond("[CQ:at,qq=${eventGroupMessage.senderId}] 您不配")
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun 敏感关键字处理(eventGroupMessage: EventGroupMessage) {
+        forbiddenKeywordList.forEach {
+            val p = Pattern.compile(it)
+            val m = p.matcher(eventGroupMessage.message)
+            if (m.find()) {
+                eventGroupMessage.recall()
+                eventGroupMessage.ban(60)
+            }
+        }
+    }
+
+    private fun searchEngine(eventGroupMessage: EventGroupMessage): Boolean {
+        val p = Pattern.compile("bing搜索[:：]")
+        val m = p.matcher(eventGroupMessage.message)
+        if (m.lookingAt()) {
+            val str = eventGroupMessage.message.substringAfter("bing搜索").substring(1)
+            val url = "https://cn.bing.com/search?q=" + URLEncoder.encode(str, "UTF-8")
+            eventGroupMessage.respond(url)
+            return true
+        }
+
+        val p2 = Pattern.compile("csdn搜索[:：]")
+        val m2 = p2.matcher(eventGroupMessage.message)
+        if (m2.lookingAt()) {
+            val str = eventGroupMessage.message.substringAfter("csdn搜索").substring(1)
+            val url = "https://so.csdn.net/so/search/s.do?q=" + URLEncoder.encode(str, "UTF-8")
+            eventGroupMessage.respond(url)
+            return true
+        }
+
+        val p3 = Pattern.compile("百度搜索[:：]")
+        val m3 = p3.matcher(eventGroupMessage.message)
+        if (m3.lookingAt()) {
+            val str = eventGroupMessage.message.substringAfter("百度搜索").substring(1)
+            val url = "https://m.baidu.com/s?ie=utf-8&f=3&rsv_bp=1&rsv_idx=1&tn=baidu&wd=" + URLEncoder.encode(str, "UTF-8")
+            eventGroupMessage.respond(url)
+            return true
+        }
+
+        val p4 = Pattern.compile("掘金搜索[:：]")
+        val m4 = p4.matcher(eventGroupMessage.message)
+        if (m4.lookingAt()) {
+            val str = eventGroupMessage.message.substringAfter("掘金搜索").substring(1)
+            val url = "https://juejin.im/search?query=" + URLEncoder.encode(str, "UTF-8") + "&type=all"
+            eventGroupMessage.respond(url)
+            return true
+        }
+        return false
+    }
+
+    private fun 封神榜命令(eventGroupMessage: EventGroupMessage): Boolean {
+        if (eventGroupMessage.message == "#封神榜") {
+            if (entertainmentMessageRankingList.size == 0) {
+                eventGroupMessage.respond("还没人复读被禁言呢！慌啥？？")
+            } else {
+                var str = "封神榜\n" +
+                        "***************\n"
+
+                for (i in 0 until entertainmentMessageRankingList.size) {
+
+                    str += "第${i + 1}名：${eventGroupMessage.getGroupUser(entertainmentMessageRankingList[i].qqnum).info.card}\n" +
+                            "次数：${entertainmentMessageRankingList[i].count}\n"
+                    str += "***************\n"
+                    val j = entertainmentMessageRankingList.indexOf(entertainmentMessageRankingList[i])
+                    if (i == 4) {
+                        break
+                    }
+                }
+                eventGroupMessage.respond(str)
+            }
+            return true
+        }
+        return false
+    }
+
+    var forbiddenCount = 0
+    var forbiddenId = 0.toLong()
+    var repeatBanCount = 1
+    private fun 娱乐禁言处理(eventGroupMessage: EventGroupMessage) {
+        //将当前消息载入
+        repeatBanList.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
+        //判断消息是否为2条即以上
+        if (repeatBanList.size > 1) {
+            if (repeatBanList[0].str == repeatBanList.last.str) {//判断是否为复读消息,不是则清空
+                if (repeatBanList.size >= repeatCount) {//判断复读是否超过了设定值
+                    val random = Random()
+                    val count = random.asKotlinRandom().nextInt(repeatCount)//随机抽取
+                    if (forbiddenId == repeatBanList[count].qqnum) {
+                        if (eventGroupMessage.getGroupUser(repeatBanList[count].qqnum).isAdmin) {
+                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
+                                    "【[CQ:at,qq=${repeatBanList[count].qqnum}]】，咋又是管理员万恶的管理，来来你们继续重复上一句话，我再挑一个")
+                        } else {
+                            forbiddenCount++//持续禁言计数
+                            repeatBanCount++
+                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
+                                    "****${forbiddenCount} 杀****\n" +
+                                    "恭喜【[CQ:at,qq=${repeatBanList[count].qqnum}]】再次中奖,加一分钟")
+                            eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60 * repeatBanCount.toLong())
+                            保存至排行榜(count)
+                        }
+
+                    } else {
+                        if (eventGroupMessage.getGroupUser(repeatBanList[count].qqnum).isAdmin) {
+                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
+                                    "【[CQ:at,qq=${repeatBanList[count].qqnum}]】，万恶的管理我禁言不了，来来你们继续重复上一句话，我再挑一个")
+                        } else {
+                            repeatBanCount = 1
+                            forbiddenId = repeatBanList[count].qqnum
+                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
+                                    "****${forbiddenCount} 杀****\n" +
+                                    "恭喜【[CQ:at,qq=${repeatBanList[count].qqnum}]】获得复读随机禁言套餐")
+                            eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60)
+                            保存至排行榜(count)
+                        }
+                    }
+
+                }
+            } else {
+                repeatBanList.clear()
+                forbiddenId = 0
+                forbiddenCount = 0
+            }
+        }
+    }
+
+    private fun 保存至排行榜(count: Int) {
+        var 是否存在 = false
+        entertainmentMessageRankingList.forEach {
+            if (repeatBanList[count].qqnum == it.qqnum) {
+                it.count += 1
+                是否存在 = true
+                return@forEach
+            }
+        }
+        if (!是否存在) {
+            entertainmentMessageRankingList.add(娱乐禁言Bean(repeatBanList[count].qqnum, 1))
+        }
+        entertainmentMessageRankingList.sortByDescending { it.count }
+        MFile.saveToFile("Data/娱乐禁言排行榜.txt", Gson().toJson(entertainmentMessageRankingList))
+    }
+
+    private fun 功能命令处理(eventGroupMessage: EventGroupMessage): Boolean {
+        if (eventGroupMessage.message == "功能") {
+//            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
+            eventGroupMessage.httpApi.sendPrivateMsg(eventGroupMessage.senderId, "" +
+                    "1.百度搜索：XXXX\n" +
+                    "2.bing搜索：XXXX\n" +
+                    "3.csdn搜索：XXXX\n" +
+                    "4.掘金搜索：XXXX(推荐这个)\n" +
+                    "5.#恶劣复读禁言条数:XXXX(需要管理员,目前${badRepeatCount}条单人复读当作恶劣复读)\n" +
+                    "6.#娱乐禁言条数:XXXX(需要管理员，目前每复读${repeatCount} 条，随机抽一人禁言30秒)\n" +
+                    "7.发送（.help）,查看骰子命令\n" +
+                    "8.群内有恶劣性敏感词禁言，并且会记录你发送这种铭感词的次数，到达一定数量，会踢出出群聊，请大家文明发言【和谐自由民主】\n" +
+                    "9.【娱乐】检测到复读抽取随机禁言大奖，并记录中奖次数\n" +
+                    "10.【娱乐】随机禁言排行榜发送（#封神榜）\n" +
+                    "【以上所有命令均需要在群里发送】\n" +
+                    ""
+            )
+            eventGroupMessage.respond("[CQ:at,qq=${eventGroupMessage.senderId}] 私发给你了，自己康康")
+//            }
+            return true
+        }
+        return false
+    }
+
+
+    //关键字添加者消息处理
+    private fun keywordAdderMessageProcessing(eventPrivateMessage: EventPrivateMessage) {
+        if (eventPrivateMessage.message == "是") {
+            var keywordMessage: KeywordMessage? = null
+            keywordsAddMessageQueue.forEach {
+                if (eventPrivateMessage.senderId == it.key) {
+                    keywordMessage = it.value
+                }
+            }
+            keywordMessage?.let {
+                it.lambda.invoke()
+            }
+            return
+        }
+
+        forbiddenKeywordList.forEach {
+            if (it == eventPrivateMessage.message) {
+                forbiddenKeywordList.remove(it)
+                eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "删除成功\n" +
+                        "$forbiddenKeywordList")
+                MFile.saveToFile("Data/禁言关键词.txt", Gson().toJson(forbiddenKeywordList))
+                return
+            }
+        }
+
+
+        val p = Pattern.compile("禁言关键字.")
+        val m = p.matcher(eventPrivateMessage.message)
+        if (m.lookingAt()) {
+            val str = eventPrivateMessage.message.substringAfter("禁言关键字").substring(1)
+            eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                    "你所添加的关键词是：$str\n" +
+                    "是否添加\n" +
+                    "请在3分钟之内回复【是】\n")
+            val date = Date()
+            //禁言消息
+            val forbiddenMessage = KeywordMessage(eventPrivateMessage.senderId) {
+                val cDate = Date()
+                if ((cDate.time - date.time) > 1000 * 60 * 3) {
+                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "时间超过")
+                    keywordsAddMessageQueue.remove(eventPrivateMessage.senderId)
+                } else {
+                    forbiddenKeywordList.add(str)
+                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "添加成功\n" +
+                            "$forbiddenKeywordList")
+                    MFile.saveToFile("Data/禁言关键词.txt", Gson().toJson(forbiddenKeywordList))
+                    keywordsAddMessageQueue.remove(eventPrivateMessage.senderId)
+                }
+            }
+            keywordsAddMessageQueue[eventPrivateMessage.senderId] = forbiddenMessage
+            return
+        }
+        eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                "现在有以下关键字：\n" +
+                "$forbiddenKeywordList\n" +
+                "*********************\n" +
+                "直接回复其中的关键字，即可删除\n" +
+                "*********************\n" +
+                "直接发送下面格式的即可添加关键字\n" +
+                "*********************\n" +
+                "禁言关键字:XXXXXXXXXX(XXX是内容)\n" +
+                "*********************\n" +
+                "建议直接复制下面的模板进行修改")
+        eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                "禁言关键字：")
 
     }
 
@@ -139,7 +506,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         //正常请假流程
         val gson = Gson()
         val senderId = eventPrivateMessage.getSenderId()//获得发送消息的人的qq号
-//        val senderId = 2470137127//获得发送消息的人的qq号
+//        val senderId = 3517746373//获得发送消息的人的qq号
 
         if (senderId == 刘旭的QQ) {
             eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "拒绝向帅气的辅导员提供服务。")

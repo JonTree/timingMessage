@@ -1,19 +1,20 @@
 @file:Suppress("NAME_SHADOWING")
 
 import bean.AssistantStudent
+import bean.CountData
+import bean.娱乐禁言Bean
 import cc.moecraft.icq.PicqConfig
 import cc.moecraft.icq.PicqBotX
 import cc.moecraft.icq.sender.IcqHttpApi
-import listen.AskForLeaveEventPrivateMessage
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import listen.*
 import tool.AssistantUtil
-import java.io.File
+import tool.MFile
 import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParsePosition
-import java.lang.Integer
-
-
 
 
 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")// 格式化时间
@@ -25,66 +26,69 @@ val 其他助理群 = 286199556.toLong()
 
 val currentDutyPersons = mutableListOf<String>()
 
+
 fun main() {
     while (true) {
-        try {
-            // 创建机器人对象 ( 传入配置 )
-            val bot = PicqBotX(PicqConfig(31092))
-            // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
-            bot.addAccount("test", "127.0.0.1", 5700)
-            Thread {
-                while (true) {
-                    val date = Date()// 获取当前时间
-                    val time = dateFormat.format(date)
-                    bot.accountManager.nonAccountSpecifiedApi.sendGroupMsg(451094615, "${time}\n\n正常运行")
-                    Thread.sleep(1000 * 60 * 10)
-                }
-            }.start()
-
-            实验室助理(bot, 实验室助理群)
-            其他助理(bot, 其他助理群)
-        禁言处理(bot, 483100546)
-
-            bot.eventManager.registerListeners(
-                    AskForLeaveEventPrivateMessage()
-            )
-
-            // 启动机器人, 不会占用主线程
-            bot.startBot()
-            Thread.sleep(Long.MAX_VALUE)
-        } catch (e: Exception) {
-
-        } finally {
-            println("发生未知错误，自动重启")
-            Thread.sleep(1000 * 5)
-            continue
+//        try {
+        // 创建机器人对象 ( 传入配置 )
+        val bot = PicqBotX(PicqConfig(31092))
+        // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
+        bot.addAccount("test", "127.0.0.1", 5700)
+        Thread {
+            while (true) {
+                val date = Date()// 获取当前时间
+                val time = dateFormat.format(date)
+                bot.accountManager.nonAccountSpecifiedApi.sendGroupMsg(451094615, "${time}\n\n正常运行")
+                Thread.sleep(1000 * 60 * 10)
+            }
+        }.start()
+        if (MFile.isExsit("Data/禁言关键词.txt")) {
+            forbiddenKeywordList = Gson().fromJson(MFile.read("Data/禁言关键词.txt"), object : TypeToken<MutableList<String>>() {}.type)
         }
+        if (MFile.isExsit("Data/娱乐禁言排行榜.txt")) {
+            entertainmentMessageRankingList = Gson().fromJson(MFile.read("Data/娱乐禁言排行榜.txt"), object : TypeToken<LinkedList<娱乐禁言Bean>>() {}.type)
+        }
+        if (MFile.isExsit("Data/复读条数设置.txt")) {
+            val countData: CountData = Gson().fromJson(MFile.read("Data/复读条数设置.txt"), CountData::class.java)
+            badRepeatCount = countData.badRepeatCount
+            repeatCount = countData.repeatCount
+        }
+        laboratoryAssistant(bot, 实验室助理群)
+        otherAssistant(bot, 其他助理群)
+//            禁言处理(bot, 483100546)
+
+        bot.eventManager.registerListeners(
+                AskForLeaveEventPrivateMessage()
+        )
+
+        // 启动机器人, 不会占用主线程
+        bot.config.isNoVerify = true
+        bot.startBot()
+        Thread.sleep(Long.MAX_VALUE)
+//        } catch (e: Exception) {
+//
+//        } finally {
+//            println("发生未知错误，自动重启")
+//            Thread.sleep(1000 * 5)
+//            continue
+//        }
     }
 }
 
-private fun 禁言处理(bot: PicqBotX, group: Long) {
-    val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
-    val list = listOf(
-            "梯子",
-            "vpn"
-            )
 
-    val date = icqHttpApi.getGroupMemberList(group)
-    println()
-//    icqHttpApi.setGroupBan()
-
-}
-
-private fun 实验室助理(bot: PicqBotX, group: Long) {
+/**
+ * 实验室助理
+ */
+private fun laboratoryAssistant(bot: PicqBotX, group: Long) {
     var sentTime: String = ""
     val dutyPersons = mutableListOf<String>()
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
-            val (time, dayForWeek, dayForTime) = 初始化当前数据()
+            val (time, dayForWeek, dayForTime) = initializeCurrentData()
             val turn: List<String>? = AssistantUtil.laboratoryWatchList["$dayForWeek$dayForTime".toInt()]
             if (turn == null) {
-                sentTime = 无人值班处理(time, sentTime, icqHttpApi, group, dayForTime)
+                sentTime = unattendedProcessing(time, sentTime, icqHttpApi, group, dayForTime)
             } else {
                 val t = time.substringAfter(" ").substringBeforeLast(":")
                 if (sentTime != t) {
@@ -103,13 +107,13 @@ private fun 实验室助理(bot: PicqBotX, group: Long) {
                     val stringBuilder = java.lang.StringBuilder()
                     stringBuilder.append("今天第${dayForTime}轮值班\n" +
                             "时间：${AssistantUtil.period(dayForTime)}\n")
-                    值班人员位置和信息添加("实验室", stringBuilder, splitLine, students)
-                    值班消息末尾(stringBuilder)
+                    onDutyStaffLocationAndInformationAdded("实验室", stringBuilder, splitLine, students)
+                    atTheEndOfTheDutyMessage(stringBuilder)
                     icqHttpApi.sendGroupMsg(group, stringBuilder.toString())
                     icqHttpApi.sendGroupMsg(group, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")
                     icqHttpApi.sendGroupMsg(451094615, stringBuilder.toString())//测试群
                     icqHttpApi.sendGroupMsg(451094615, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")//测试群
-                    寻找此班次请假的处理(listOf("实验室"), time, dayForTime, icqHttpApi, group)
+                    lookingForTheTreatmentOfThisShift(listOf("实验室"), time, dayForTime, icqHttpApi, group)
                 }
             }
 
@@ -117,14 +121,16 @@ private fun 实验室助理(bot: PicqBotX, group: Long) {
     }.start()
 }
 
-
-private fun 其他助理(bot: PicqBotX, group: Long) {
+/**
+ * 其他助理
+ */
+private fun otherAssistant(bot: PicqBotX, group: Long) {
     var sentTime: String = ""
     val dutyPersons = mutableListOf<String>()
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
-            val (time, dayForWeek, dayForTime) = 初始化当前数据()
+            val (time, dayForWeek, dayForTime) = initializeCurrentData()
 
             if (dayForTime == 0) {
                 continue
@@ -133,7 +139,7 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
             val turnC = AssistantUtil.collegeWatchList["$dayForWeek$dayForTime".toInt()]
             val turnA = AssistantUtil.academicWorkerWatchList["$dayForWeek$dayForTime".toInt()]
             if (turnS == null && turnA == null && turnC == null) {
-                sentTime = 无人值班处理(time, sentTime, icqHttpApi, group, dayForTime)
+                sentTime = unattendedProcessing(time, sentTime, icqHttpApi, group, dayForTime)
             } else {
                 val t = time.substringAfter(" ").substringBeforeLast(":")
                 if (sentTime != t) {
@@ -144,11 +150,11 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
                         append(splitLine)
                         val students = LinkedList<AssistantStudent?>()
 
-                        值班人员位置和信息添加("学籍办", stringBuilder, splitLine, turnS?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
+                        onDutyStaffLocationAndInformationAdded("学籍办", stringBuilder, splitLine, turnS?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
-                        值班人员位置和信息添加("学工办", stringBuilder, splitLine, turnA?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
+                        onDutyStaffLocationAndInformationAdded("学工办", stringBuilder, splitLine, turnA?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
-                        值班人员位置和信息添加("院办", stringBuilder, splitLine, turnC?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
+                        onDutyStaffLocationAndInformationAdded("院办", stringBuilder, splitLine, turnC?.map { AssistantUtil.assistantDateList[it] }?.apply { students.addAll(this) })
 
                         for (person in dutyPersons) {
                             currentDutyPersons.remove(person)
@@ -160,22 +166,24 @@ private fun 其他助理(bot: PicqBotX, group: Long) {
                                 currentDutyPersons.add(student.name)
                             }
                         }
-                        值班消息末尾(stringBuilder)
+                        atTheEndOfTheDutyMessage(stringBuilder)
 
                     }
                     icqHttpApi.sendGroupMsg(group, stringBuilder.toString())
                     icqHttpApi.sendGroupMsg(451094615, stringBuilder.toString())//测试群
-                    寻找此班次请假的处理(listOf("学籍办", "学工办", "院办"), time, dayForTime, icqHttpApi, group)
+                    lookingForTheTreatmentOfThisShift(listOf("学籍办", "学工办", "院办"), time, dayForTime, icqHttpApi, group)
                 }
             }
-
         }
 
     }.start()
 }
 
 
-private fun 初始化当前数据(): Triple<String, Int, Int> {
+/**
+ * 初始化当前数据
+ */
+private fun initializeCurrentData(): Triple<String, Int, Int> {
     Thread.sleep(2000)
     val date = Date()// 获取当前时间
 //    val time = "2019-10-14 13:45:00"//测试语句
@@ -187,7 +195,10 @@ private fun 初始化当前数据(): Triple<String, Int, Int> {
     return Triple(time, dayForWeek, dayForTime)
 }
 
-private fun 无人值班处理(time: String, sentTime: String, icqHttpApi: IcqHttpApi, group: Long, dayForTime: Int): String {
+/**
+ * 无人值班处理
+ */
+private fun unattendedProcessing(time: String, sentTime: String, icqHttpApi: IcqHttpApi, group: Long, dayForTime: Int): String {
     var sentTime1 = sentTime
     val t = time.substringAfter(" ").substringBeforeLast(":")
     if (sentTime1 != t) {
@@ -206,7 +217,10 @@ private fun 无人值班处理(time: String, sentTime: String, icqHttpApi: IcqHt
     return sentTime1
 }
 
-private fun 寻找此班次请假的处理(nameList: List<String>, time: String, dayForTime: Int, icqHttpApi: IcqHttpApi, group: Long) {
+/**
+ * 寻找此班次请假的处理
+ */
+private fun lookingForTheTreatmentOfThisShift(nameList: List<String>, time: String, dayForTime: Int, icqHttpApi: IcqHttpApi, group: Long) {
     val stringBuilder2 = StringBuilder()
     AssistantUtil.leaveDataBean.leaveDatas.forEach { leaveDatasEntity ->
         val lTime = SimpleDateFormat("yyyy年MM月dd日").parse(leaveDatasEntity.content.substringBefore("第"), ParsePosition(0))?.time
@@ -232,12 +246,18 @@ private fun 寻找此班次请假的处理(nameList: List<String>, time: String,
     }
 }
 
-private fun 值班消息末尾(stringBuilder: java.lang.StringBuilder) {
+/**
+ * 值班消息末尾
+ */
+private fun atTheEndOfTheDutyMessage(stringBuilder: java.lang.StringBuilder) {
     stringBuilder.append("请相应同学按时到达,如有事不能来请【提前】【提前】【提前】私聊机器人请假（重要的事说三遍）" +
             "向机器人发送任意私聊消息即可得到请假文本格式")
 }
 
-private fun 值班人员位置和信息添加(name: String, stringBuilder: java.lang.StringBuilder, splitLine: String, students: List<AssistantStudent?>?) {
+/**
+ * 值班人员位置和信息添加
+ */
+private fun onDutyStaffLocationAndInformationAdded(name: String, stringBuilder: java.lang.StringBuilder, splitLine: String, students: List<AssistantStudent?>?) {
     students?.let {
         stringBuilder.apply {
             append("【${name}】\n")
