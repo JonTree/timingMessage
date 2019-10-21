@@ -136,7 +136,7 @@ object FileUtils {
 
     fun createExcel() {
         // 获取桌面路径
-        val filePath = "C:\\wamp64\\www\\leave\\请假记录文档.xls"
+        val filePath = "C:/wamp64/www/leave/请假记录文档.xls"
 
         val file = File(filePath)
         val outputStream = FileOutputStream(file)

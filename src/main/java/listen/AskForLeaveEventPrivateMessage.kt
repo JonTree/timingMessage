@@ -79,8 +79,8 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
     //恶劣复读消息收集
     val badSingleRepeat = LinkedList<RepeatData>()
-//        val group = 451094615.toLong()//哒哒群
-    val group = 483100546.toLong()//安卓群
+        val group = 451094615.toLong()//哒哒群
+//    val group = 483100546.toLong()//安卓群
     //    val group = 913874135.toLong()//测试群
 
     //关键词禁言
@@ -95,7 +95,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
             if (封神榜命令(eventGroupMessage)) return
             //恶劣禁言
-            if (恶劣禁言处理(eventGroupMessage)) return
+//            if (恶劣禁言处理(eventGroupMessage)) return
 
             娱乐禁言处理(eventGroupMessage)
             //禁言关键字List
@@ -246,7 +246,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    var forbiddenCount = 0
+    var forbiddenCount = 1
     var forbiddenId = 0.toLong()
     var repeatBanCount = 1
     private fun 娱乐禁言处理(eventGroupMessage: EventGroupMessage) {
@@ -286,12 +286,11 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                             保存至排行榜(count)
                         }
                     }
-
                 }
             } else {
                 repeatBanList.clear()
                 forbiddenId = 0
-                forbiddenCount = 0
+                forbiddenCount = 1
             }
         }
     }
