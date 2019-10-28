@@ -2,7 +2,7 @@
 
 import bean.AssistantStudent
 import bean.CountData
-import bean.娱乐禁言Bean
+import bean.EntertainmentBanBean
 import cc.moecraft.icq.PicqConfig
 import cc.moecraft.icq.PicqBotX
 import cc.moecraft.icq.sender.IcqHttpApi
@@ -11,7 +11,6 @@ import com.google.gson.reflect.TypeToken
 import listen.*
 import tool.AssistantUtil
 import tool.MFile
-import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParsePosition
@@ -46,7 +45,7 @@ fun main() {
             forbiddenKeywordList = Gson().fromJson(MFile.read("Data/禁言关键词.txt"), object : TypeToken<MutableList<String>>() {}.type)
         }
         if (MFile.isExsit("Data/娱乐禁言排行榜.txt")) {
-            entertainmentMessageRankingList = Gson().fromJson(MFile.read("Data/娱乐禁言排行榜.txt"), object : TypeToken<LinkedList<娱乐禁言Bean>>() {}.type)
+            entertainmentMessageRankingList = Gson().fromJson(MFile.read("Data/娱乐禁言排行榜.txt"), object : TypeToken<LinkedList<EntertainmentBanBean>>() {}.type)
         }
         if (MFile.isExsit("Data/复读条数设置.txt")) {
             val countData: CountData = Gson().fromJson(MFile.read("Data/复读条数设置.txt"), CountData::class.java)

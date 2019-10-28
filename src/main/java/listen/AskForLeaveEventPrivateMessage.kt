@@ -23,7 +23,7 @@ import kotlin.random.asKotlinRandom
 
 
 var forbiddenKeywordList = mutableListOf<String>()
-var entertainmentMessageRankingList = LinkedList<娱乐禁言Bean>()
+var entertainmentMessageRankingList = LinkedList<EntertainmentBanBean>()
 
 var repeatCount = 6
 var badRepeatCount = 4
@@ -41,7 +41,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     val 我的qq = 1246634075.toLong()
 
     //关键字添加者
-    val keywordAdder = listOf(
+    private val keywordAdder = listOf(
             1044805408.toLong(),
             1142013327.toLong(),
             897598260.toLong(),
@@ -65,45 +65,52 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         if (isItAKeywordAdder) {
             keywordAdderMessageProcessing(eventPrivateMessage)
         } else {
-            when (eventPrivateMessage.message) {
-                "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
-                "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
-                else -> leaveProcess(eventPrivateMessage)
-            }
+            助理群机器人(eventPrivateMessage)
+        }
+        if (我的qq == eventPrivateMessage.senderId) {
+            助理群机器人(eventPrivateMessage)
+        }
+    }
+
+    private fun 助理群机器人(eventPrivateMessage: EventPrivateMessage) {
+        when (eventPrivateMessage.message) {
+            "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
+            "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
+            else -> leaveProcess(eventPrivateMessage)
         }
     }
 
 
-    //娱乐复读消息收集
-    val repeatBanList = LinkedList<RepeatData>()
-
     //恶劣复读消息收集
     val badSingleRepeat = LinkedList<RepeatData>()
-        val group = 451094615.toLong()//哒哒群
-//    val group = 483100546.toLong()//安卓群
+//    val group = 451094615.toLong()//哒哒群
+    val group = 483100546.toLong()//安卓群
     //    val group = 913874135.toLong()//测试群
 
     //关键词禁言
     @EventHandler
     fun keyWordsBan(eventGroupMessage: EventGroupMessage) {
         if (eventGroupMessage.groupId == group) {
-            if (娱乐禁言条数更改命令(eventGroupMessage)) return
-            if (恶劣复读条数更改(eventGroupMessage)) return
-            if (功能命令处理(eventGroupMessage)) return
+            if (entertainmentBannedNumberChangeCommand(eventGroupMessage)) return
+            if (badRepeatingNumberChanges(eventGroupMessage)) return
+            if (functionCommandProcessing(eventGroupMessage)) return
             //搜索引擎
             if (searchEngine(eventGroupMessage)) return
 
-            if (封神榜命令(eventGroupMessage)) return
+            if (sealedList(eventGroupMessage)) return
             //恶劣禁言
-//            if (恶劣禁言处理(eventGroupMessage)) return
+            if (severeProhibition(eventGroupMessage)) return
 
-            娱乐禁言处理(eventGroupMessage)
+            entertainmentBanProcessing(eventGroupMessage)
             //禁言关键字List
-            敏感关键字处理(eventGroupMessage)
+            sensitiveKeywordProcessing(eventGroupMessage)
         }
     }
 
-    private fun 恶劣禁言处理(eventGroupMessage: EventGroupMessage): Boolean {
+    /**
+     * 恶劣禁言处理
+     */
+    private fun severeProhibition(eventGroupMessage: EventGroupMessage): Boolean {
         badSingleRepeat.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
         if (badSingleRepeat.size > 1) {
             return if (badSingleRepeat[0].qqnum == badSingleRepeat.last.qqnum && badSingleRepeat[0].str == badSingleRepeat.last.str) {
@@ -121,7 +128,10 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    private fun 恶劣复读条数更改(eventGroupMessage: EventGroupMessage): Boolean {
+    /**
+     * 恶劣复读条数更改
+     */
+    private fun badRepeatingNumberChanges(eventGroupMessage: EventGroupMessage): Boolean {
         val p = Pattern.compile("#恶劣复读禁言条数.")
         val m = p.matcher(eventGroupMessage.message)
         if (m.lookingAt()) {
@@ -145,7 +155,10 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    private fun 娱乐禁言条数更改命令(eventGroupMessage: EventGroupMessage): Boolean {
+    /**
+     * 娱乐禁言条数更改命令
+     */
+    private fun entertainmentBannedNumberChangeCommand(eventGroupMessage: EventGroupMessage): Boolean {
         val p = Pattern.compile("#娱乐禁言条数.")
         val m = p.matcher(eventGroupMessage.message)
         if (m.lookingAt()) {
@@ -171,7 +184,10 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    private fun 敏感关键字处理(eventGroupMessage: EventGroupMessage) {
+    /**
+     * 敏感关键字处理
+     */
+    private fun sensitiveKeywordProcessing(eventGroupMessage: EventGroupMessage) {
         forbiddenKeywordList.forEach {
             val p = Pattern.compile(it)
             val m = p.matcher(eventGroupMessage.message)
@@ -221,7 +237,10 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    private fun 封神榜命令(eventGroupMessage: EventGroupMessage): Boolean {
+    /**
+     * 封神榜命令
+     */
+    private fun sealedList(eventGroupMessage: EventGroupMessage): Boolean {
         if (eventGroupMessage.message == "#封神榜") {
             if (entertainmentMessageRankingList.size == 0) {
                 eventGroupMessage.respond("还没人复读被禁言呢！慌啥？？")
@@ -230,11 +249,9 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                         "***************\n"
 
                 for (i in 0 until entertainmentMessageRankingList.size) {
-
                     str += "第${i + 1}名：${eventGroupMessage.getGroupUser(entertainmentMessageRankingList[i].qqnum).info.card}\n" +
                             "次数：${entertainmentMessageRankingList[i].count}\n"
                     str += "***************\n"
-                    val j = entertainmentMessageRankingList.indexOf(entertainmentMessageRankingList[i])
                     if (i == 4) {
                         break
                     }
@@ -246,72 +263,81 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         return false
     }
 
-    var forbiddenCount = 1
-    var forbiddenId = 0.toLong()
-    var repeatBanCount = 1
-    private fun 娱乐禁言处理(eventGroupMessage: EventGroupMessage) {
+
+    //娱乐复读消息收集
+    private val repeatBanList = LinkedList<RepeatData>()
+    private val repeatedBannedMinutes = LinkedList<EntertainmentBanBean>()
+    private var isStartRepeating = false
+    //娱乐禁言处理
+    private fun entertainmentBanProcessing(eventGroupMessage: EventGroupMessage) {
         //将当前消息载入
         repeatBanList.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
         //判断消息是否为2条即以上
         if (repeatBanList.size > 1) {
             if (repeatBanList[0].str == repeatBanList.last.str) {//判断是否为复读消息,不是则清空
                 if (repeatBanList.size >= repeatCount) {//判断复读是否超过了设定值
+                    isStartRepeating = true
                     val random = Random()
-                    val count = random.asKotlinRandom().nextInt(repeatCount)//随机抽取
-                    if (forbiddenId == repeatBanList[count].qqnum) {
-                        if (eventGroupMessage.getGroupUser(repeatBanList[count].qqnum).isAdmin) {
-                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
-                                    "【[CQ:at,qq=${repeatBanList[count].qqnum}]】，咋又是管理员万恶的管理，来来你们继续重复上一句话，我再挑一个")
-                        } else {
-                            forbiddenCount++//持续禁言计数
-                            repeatBanCount++
-                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
-                                    "****${forbiddenCount} 杀****\n" +
-                                    "恭喜【[CQ:at,qq=${repeatBanList[count].qqnum}]】再次中奖,加一分钟")
-                            eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60 * repeatBanCount.toLong())
-                            保存至排行榜(count)
-                        }
-
-                    } else {
-                        if (eventGroupMessage.getGroupUser(repeatBanList[count].qqnum).isAdmin) {
-                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
-                                    "【[CQ:at,qq=${repeatBanList[count].qqnum}]】，万恶的管理我禁言不了，来来你们继续重复上一句话，我再挑一个")
-                        } else {
-                            repeatBanCount = 1
-                            forbiddenId = repeatBanList[count].qqnum
-                            eventGroupMessage.httpApi.sendGroupMsg(group, "" +
-                                    "****${forbiddenCount} 杀****\n" +
-                                    "恭喜【[CQ:at,qq=${repeatBanList[count].qqnum}]】获得复读随机禁言套餐")
-                            eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60)
-                            保存至排行榜(count)
+                    val count = random.asKotlinRandom().nextInt(repeatBanList.size)//随机抽取
+                    var isExist = false
+                    var index = 0
+                    repeatedBannedMinutes.forEach {
+                        if (repeatBanList[count].qqnum == it.qqnum) {
+                            it.count++
+                            isExist = true
+                            index = repeatedBannedMinutes.indexOf(it)
+                            return@forEach
                         }
                     }
+                    if (!isExist) {
+                        repeatedBannedMinutes.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
+                        index = repeatedBannedMinutes.lastIndex
+                    }
+                    eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60 * repeatedBannedMinutes[index].count.toLong())
+                    saveToLeaderboard(count)
                 }
             } else {
+                if (isStartRepeating) {
+                    repeatedBannedMinutes.sortByDescending { it.count}
+                    var str = "" +
+                            "本轮禁言分钟数排行：\n"
+                    for (i in 0 until repeatedBannedMinutes.size) {
+                        str += "" +
+                                "***第${i + 1}名${repeatedBannedMinutes[i].count}分钟***\n" +
+                                "${eventGroupMessage.getGroupUser(repeatedBannedMinutes[i].qqnum).info.card}\n" +
+                                "******************\n"
+                    }
+                    eventGroupMessage.respond(str)
+                    isStartRepeating = false
+                }
+                repeatedBannedMinutes.clear()
                 repeatBanList.clear()
-                forbiddenId = 0
-                forbiddenCount = 1
             }
         }
     }
 
-    private fun 保存至排行榜(count: Int) {
-        var 是否存在 = false
+    /**
+     * 保存至排行榜
+     */
+    private fun saveToLeaderboard(count: Int) {
+        //是否存在
+        var doesItExist = false
         entertainmentMessageRankingList.forEach {
             if (repeatBanList[count].qqnum == it.qqnum) {
                 it.count += 1
-                是否存在 = true
+                doesItExist = true
                 return@forEach
             }
         }
-        if (!是否存在) {
-            entertainmentMessageRankingList.add(娱乐禁言Bean(repeatBanList[count].qqnum, 1))
+        if (!doesItExist) {
+            entertainmentMessageRankingList.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
         }
         entertainmentMessageRankingList.sortByDescending { it.count }
         MFile.saveToFile("Data/娱乐禁言排行榜.txt", Gson().toJson(entertainmentMessageRankingList))
     }
 
-    private fun 功能命令处理(eventGroupMessage: EventGroupMessage): Boolean {
+    //功能命令处理
+    private fun functionCommandProcessing(eventGroupMessage: EventGroupMessage): Boolean {
         if (eventGroupMessage.message == "功能") {
 //            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
             eventGroupMessage.httpApi.sendPrivateMsg(eventGroupMessage.senderId, "" +
@@ -345,9 +371,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     keywordMessage = it.value
                 }
             }
-            keywordMessage?.let {
-                it.lambda.invoke()
-            }
+            keywordMessage?.lambda?.invoke()
             return
         }
 
@@ -446,6 +470,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     }
 
     //请假流程
+    @Suppress("NAME_SHADOWING")
     private fun leaveProcess(eventPrivateMessage: EventPrivateMessage) {
         //补登请假
         val p = Pattern.compile("请假人学号：.*[0-9]+.*\r*\n请假事由：.+\r*\n请假班次：20..年..月..日第[1357][2468]节课.*")
@@ -538,9 +563,9 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 leaveQueue[assistantStudent.name]?.let {
                     synchronized(it) {
                         leaveQueue[assistantStudent.name]?.lambda?.invoke()?.let { leaveDatasEntity ->
-                            var date: Calendar? = null
+                            var date: Calendar?
                             Calendar.getInstance().apply {
-                                time = strToDate(leaveDatasEntity?.timestamp ?: "")
+                                time = strToDate(leaveDatasEntity.timestamp ?: "")
                                 date = this
                             }
                             val today: Calendar? = null
@@ -676,15 +701,12 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     }
 
     // 字符串 转 日期
-    fun strToDate(str: String): Date? {
-        if (str.isNotEmpty()) {
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            val date = sdf.parse(str);
-            return date;
-        } else {
-            return null
-
-        }
-    }
-
+    private fun strToDate(str: String): Date? =
+            if (str.isNotEmpty()) {
+                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                val date = sdf.parse(str);
+                date;
+            } else {
+                null
+            }
 }
