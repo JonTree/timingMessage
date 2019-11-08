@@ -85,7 +85,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
     //恶劣复读消息收集
     val badSingleRepeat = LinkedList<RepeatData>()
-    //    val group = 451094615.toLong()//哒哒群
+//    val group = 451094615.toLong()//哒哒群
     val group = 483100546.toLong()//安卓群
     //    val group = 913874135.toLong()//测试群
 
@@ -117,7 +117,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         if (badSingleRepeat.size > 1) {
             return if (badSingleRepeat[0].qqnum == badSingleRepeat.last.qqnum && badSingleRepeat[0].str == badSingleRepeat.last.str) {
                 if (badSingleRepeat.size >= badRepeatCount) {
-                    eventGroupMessage.httpApi.setGroupBan(group, badSingleRepeat[0].qqnum, 60 * 10)
+                    eventGroupMessage.httpApi.setGroupBan(group, badSingleRepeat[0].qqnum, 60 * 60)
                     eventGroupMessage.httpApi.sendGroupMsg(group, "[CQ:at,qq=${badSingleRepeat[0].qqnum}]恶劣复读")
                     badSingleRepeat.clear()
                 }
@@ -191,7 +191,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
      */
     private fun sensitiveKeywordProcessing(eventGroupMessage: EventGroupMessage) {
         forbiddenKeywordList.forEach {
-            val p = Pattern.compile(it)
+            val p = Pattern.compile(it,Pattern.CASE_INSENSITIVE)
             val m = p.matcher(eventGroupMessage.message)
             if (m.find()) {
                 eventGroupMessage.recall()
@@ -283,20 +283,30 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     val count = random.asKotlinRandom().nextInt(repeatBanList.size)//随机抽取
                     var isExist = false
                     var index = 0
+                    var doesItExist = false
+                    var entertainmentBanBean: EntertainmentBanBean? = null
+                    entertainmentMessageRankingList.forEach {
+                        if (repeatBanList[count].qqnum == it.qqnum) {
+                            doesItExist = true
+                            entertainmentBanBean = it
+                            return@forEach
+                        }
+                    }
                     repeatedBannedMinutes.forEach {
                         if (repeatBanList[count].qqnum == it.qqnum) {
-                            it.count++
                             isExist = true
+                            it.count++
+                            发送娱乐禁言消息(eventGroupMessage, count, entertainmentBanBean)
                             index = repeatedBannedMinutes.indexOf(it)
                             return@forEach
                         }
                     }
                     if (!isExist) {
                         repeatedBannedMinutes.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
+                        发送娱乐禁言消息(eventGroupMessage, count, entertainmentBanBean)
                         index = repeatedBannedMinutes.lastIndex
                     }
-                    eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, 60 * repeatedBannedMinutes[index].count.toLong())
-                    saveToLeaderboard(count)
+                    saveToLeaderboard(doesItExist, entertainmentBanBean, count)
                 }
             } else {
                 if (isStartRepeating) {
@@ -318,24 +328,27 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         }
     }
 
+    private fun 发送娱乐禁言消息(eventGroupMessage: EventGroupMessage, count: Int, entertainmentBanBean: EntertainmentBanBean?) {
+        eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, (60 * (entertainmentBanBean?.let { ++it.count }
+                ?: 1)).toLong())
+        entertainmentMessageRankingList.sortByDescending { it.count }
+        entertainmentBanBean?.let {
+            eventGroupMessage.httpApi.sendPrivateMsg(repeatBanList[count].qqnum, "你的安卓群内每次被禁言时长增加到${it.count}分钟，" +
+                    "排名为${entertainmentMessageRankingList.indexOf(it)+1},请好好学习技术不要复读")
+        }
+
+    }
+
     /**
      * 保存至排行榜
      */
-    private fun saveToLeaderboard(count: Int) {
-        //是否存在
-        var doesItExist = false
-        entertainmentMessageRankingList.forEach {
-            if (repeatBanList[count].qqnum == it.qqnum) {
-                it.count += 1
-                doesItExist = true
-                return@forEach
-            }
-        }
+    private fun saveToLeaderboard(doesItExist: Boolean, entertainmentBanBean: EntertainmentBanBean?, count: Int): EntertainmentBanBean? {
         if (!doesItExist) {
             entertainmentMessageRankingList.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
         }
-        entertainmentMessageRankingList.sortByDescending { it.count }
+
         MFile.saveToFile("Data/娱乐禁言排行榜.txt", Gson().toJson(entertainmentMessageRankingList))
+        return entertainmentBanBean
     }
 
     //功能命令处理
@@ -347,12 +360,11 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     "2.bing搜索：XXXX\n" +
                     "3.csdn搜索：XXXX\n" +
                     "4.掘金搜索：XXXX(推荐这个)\n" +
-                    "5.#恶劣复读禁言条数:XXXX(需要管理员,目前${badRepeatCount}条单人复读当作恶劣复读)\n" +
-                    "6.#娱乐禁言条数:XXXX(需要管理员，目前每复读${repeatCount} 条，随机抽一人禁言30秒)\n" +
-                    "7.发送（.help）,查看骰子命令\n" +
-                    "8.群内有恶劣性敏感词禁言，并且会记录你发送这种铭感词的次数，到达一定数量，会踢出出群聊，请大家文明发言【和谐自由民主】\n" +
-                    "9.【娱乐】检测到复读抽取随机禁言大奖，并记录中奖次数\n" +
-                    "10.【娱乐】随机禁言排行榜发送（#封神榜）\n" +
+                    "5.#恶劣复读禁言条数:XXXX(需要管理员,目前${badRepeatCount}条单人复读当作恶劣复读，禁言一小时)\n" +
+                    "6.#娱乐禁言条数:XXXX(需要管理员，目前每复读${repeatCount} 条，随机抽一人增加自有复读时间，【并持续累加不清零，参与复读越多，每次禁言时间越长】)\n" +
+                    "7.群内有恶劣性敏感词禁言，并且会记录你发送这种铭感词的次数，到达一定数量，会踢出出群聊，请大家文明发言【和谐自由民主】\n" +
+                    "8.【娱乐】检测到复读抽取随机禁言大奖，并记录中奖次数\n" +
+                    "9.【娱乐】随机禁言排行榜发送（#封神榜）\n" +
                     "【以上所有命令均需要在群里发送】\n" +
                     ""
             )
@@ -454,7 +466,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     //处理文档请求消息
     private fun processingDocumentRequestMessage(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
-            刘旭的QQ, 刘星的QQ, 我的qq, 程碧勇的qq,杨天的qq -> {
+            刘旭的QQ, 刘星的QQ, 我的qq, 程碧勇的qq, 杨天的qq -> {
                 createExcel()
                 val file = File("C:\\wamp64\\www\\leave\\config\\文档数据标识.txt")
                 try {
@@ -623,7 +635,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                                         "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
                                         leaveDatasEntity.content)
 
-  eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
+                                eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
                                         "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
                                         leaveDatasEntity.content)
 
