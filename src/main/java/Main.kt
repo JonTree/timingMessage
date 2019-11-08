@@ -14,6 +14,7 @@ import tool.MFile
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParsePosition
+import javax.xml.crypto.Data
 
 
 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")// 格式化时间
@@ -27,50 +28,53 @@ val currentDutyPersons = mutableListOf<String>()
 
 
 fun main() {
-    while (true) {
-//        try {
-        // 创建机器人对象 ( 传入配置 )
-        val bot = PicqBotX(PicqConfig(31092))
-        // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
-        bot.addAccount("test", "127.0.0.1", 5700)
-        Thread {
-            while (true) {
-                val date = Date()// 获取当前时间
-                val time = dateFormat.format(date)
-                bot.accountManager.nonAccountSpecifiedApi.sendGroupMsg(451094615, "${time}\n\n正常运行")
-                Thread.sleep(1000 * 60 * 10)
+    // 创建机器人对象 ( 传入配置 )
+    val bot = PicqBotX(PicqConfig(31092))
+    // 添加一个机器人账户 ( 名字, 发送URL, 发送端口 )
+    bot.addAccount("test", "127.0.0.1", 5700)
+    Thread {
+        while (true) {
+            val date = Date()// 获取当前时间
+            val time = dateFormat.format(date)
+            bot.accountManager.nonAccountSpecifiedApi.sendGroupMsg(451094615, "${time}\n\n正常运行")
+            Thread.sleep(1000 * 60 * 10)
+        }
+    }.start()
+    if (MFile.isExsit("Data/禁言关键词.txt")) {
+        forbiddenKeywordList = Gson().fromJson(MFile.read("Data/禁言关键词.txt"), object : TypeToken<MutableList<String>>() {}.type)
+    }
+    if (MFile.isExsit("Data/娱乐禁言排行榜.txt")) {
+        entertainmentMessageRankingList = Gson().fromJson(MFile.read("Data/娱乐禁言排行榜.txt"), object : TypeToken<LinkedList<EntertainmentBanBean>>() {}.type)
+    }
+    if (MFile.isExsit("Data/复读条数设置.txt")) {
+        val countData: CountData = Gson().fromJson(MFile.read("Data/复读条数设置.txt"), CountData::class.java)
+        badRepeatCount = countData.badRepeatCount
+        repeatCount = countData.repeatCount
+    }
+    laboratoryAssistant(bot, 实验室助理群)
+    otherAssistant(bot, 其他助理群)
+    bot.eventManager.registerListeners(
+            AskForLeaveEventPrivateMessage()
+    )
+
+    // 启动机器人, 不会占用主线程
+    bot.config.isNoVerify = true
+    bot.startBot()
+    Thread {
+        while (true) {
+            Thread.sleep(1000)
+            if (MFile.isExsit("Data/防止意外退出重启.txt")) {
+                if (Date().time - MFile.read("Data/防止意外退出重启.txt").toLong() > 2 * 60 * 1000) {
+                    main()
+                    return@Thread
+                }else{
+                    防止意外退出()
+                }
+            } else {
+                MFile.createFolder("Data/防止意外退出重启.txt", false)
+                防止意外退出()
             }
-        }.start()
-        if (MFile.isExsit("Data/禁言关键词.txt")) {
-            forbiddenKeywordList = Gson().fromJson(MFile.read("Data/禁言关键词.txt"), object : TypeToken<MutableList<String>>() {}.type)
         }
-        if (MFile.isExsit("Data/娱乐禁言排行榜.txt")) {
-            entertainmentMessageRankingList = Gson().fromJson(MFile.read("Data/娱乐禁言排行榜.txt"), object : TypeToken<LinkedList<EntertainmentBanBean>>() {}.type)
-        }
-        if (MFile.isExsit("Data/复读条数设置.txt")) {
-            val countData: CountData = Gson().fromJson(MFile.read("Data/复读条数设置.txt"), CountData::class.java)
-            badRepeatCount = countData.badRepeatCount
-            repeatCount = countData.repeatCount
-        }
-        laboratoryAssistant(bot, 实验室助理群)
-        otherAssistant(bot, 其他助理群)
-//            禁言处理(bot, 483100546)
-
-        bot.eventManager.registerListeners(
-                AskForLeaveEventPrivateMessage()
-        )
-
-        // 启动机器人, 不会占用主线程
-        bot.config.isNoVerify = true
-        bot.startBot()
-        Thread.sleep(Long.MAX_VALUE)
-//        } catch (e: Exception) {
-//
-//        } finally {
-//            println("发生未知错误，自动重启")
-//            Thread.sleep(1000 * 5)
-//            continue
-//        }
     }
 }
 
@@ -84,6 +88,7 @@ private fun laboratoryAssistant(bot: PicqBotX, group: Long) {
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
+            防止意外退出()
             val (time, dayForWeek, dayForTime) = initializeCurrentData()
             val turn: List<String>? = AssistantUtil.laboratoryWatchList["$dayForWeek$dayForTime".toInt()]
             if (turn == null) {
@@ -111,13 +116,17 @@ private fun laboratoryAssistant(bot: PicqBotX, group: Long) {
                     icqHttpApi.sendGroupMsg(group, stringBuilder.toString())
                     icqHttpApi.sendGroupMsg(group, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")
                     icqHttpApi.sendGroupMsg(451094615, stringBuilder.toString())//测试群
-                    icqHttpApi.sendGroupMsg(451094615, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")//测试群
+                    icqHttpApi.sendGroupMsg(451094615, "请值班的同学注意，每次值班时，请优先将没有上课的教室的讲台整理一下，将讲台桌面上的灰尘和教师座椅的灰尘打扫一下，并将物品摆放整齐，谢谢！\n")//测试群
                     lookingForTheTreatmentOfThisShift(listOf("实验室"), time, dayForTime, icqHttpApi, group)
                 }
             }
 
         }
     }.start()
+}
+
+private fun 防止意外退出() {
+    MFile.saveToFile("Data/防止意外退出重启.txt", "" + Date().time)
 }
 
 /**
@@ -129,6 +138,7 @@ private fun otherAssistant(bot: PicqBotX, group: Long) {
     Thread {
         val icqHttpApi = bot.accountManager.nonAccountSpecifiedApi
         while (true) {
+            防止意外退出()
             val (time, dayForWeek, dayForTime) = initializeCurrentData()
 
             if (dayForTime == 0) {

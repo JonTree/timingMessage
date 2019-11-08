@@ -38,6 +38,8 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
     val 刘星的QQ = 1623044256.toLong()
     val 刘旭的QQ = 2108372936.toLong()
+    val 程碧勇的qq = 1335088824.toLong()
+    val 杨天的qq = 1049895891.toLong()
     val 我的qq = 1246634075.toLong()
 
     //关键字添加者
@@ -83,7 +85,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
     //恶劣复读消息收集
     val badSingleRepeat = LinkedList<RepeatData>()
-//    val group = 451094615.toLong()//哒哒群
+    //    val group = 451094615.toLong()//哒哒群
     val group = 483100546.toLong()//安卓群
     //    val group = 913874135.toLong()//测试群
 
@@ -298,7 +300,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 }
             } else {
                 if (isStartRepeating) {
-                    repeatedBannedMinutes.sortByDescending { it.count}
+                    repeatedBannedMinutes.sortByDescending { it.count }
                     var str = "" +
                             "本轮禁言分钟数排行：\n"
                     for (i in 0 until repeatedBannedMinutes.size) {
@@ -432,7 +434,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     //处理补登请假提示文本
     private fun handlingTheLeaveRequestText(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
-            刘旭的QQ, 刘星的QQ, 我的qq -> {
+            刘旭的QQ, 刘星的QQ, 我的qq, 程碧勇的qq, 杨天的qq -> {
                 val dateFormat = SimpleDateFormat()// 格式化时间
                 dateFormat.applyPattern("yyyy年MM月dd日")// a为am/pm的标记
                 val date = Date()// 获取当前时间
@@ -452,21 +454,25 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     //处理文档请求消息
     private fun processingDocumentRequestMessage(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
-            刘旭的QQ, 刘星的QQ, 我的qq -> {
+            刘旭的QQ, 刘星的QQ, 我的qq, 程碧勇的qq,杨天的qq -> {
                 createExcel()
                 val file = File("C:\\wamp64\\www\\leave\\config\\文档数据标识.txt")
                 try {
                     eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "正在导出数据，请稍等...")
                     file.delete()
-                    Thread.sleep(3000)
-                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "http://139.196.143.240/leave/index.php")
+                    延迟发送下载链接(eventPrivateMessage)
                 } catch (e: Exception) {
-                    Thread.sleep(3000)
-                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "http://139.196.143.240/leave/index.php")
+                    延迟发送下载链接(eventPrivateMessage)
                 }
             }
             else -> eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "对不起，你没有权限")
         }
+    }
+
+    private fun 延迟发送下载链接(eventPrivateMessage: EventPrivateMessage) {
+        Thread.sleep(3000)
+        eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                "http://139.196.143.240/leave/index.php")
     }
 
     //请假流程
@@ -538,11 +544,11 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         }
 
 
-        if (senderId == 刘星的QQ) {
+        if (senderId == 刘星的QQ || senderId == 程碧勇的qq || senderId == 杨天的qq) {
             eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
-                    "功能：（发送功能名称即可）" +
+                    "功能：（发送功能名称即可）\n" +
                     "1.补登请假\n" +
-                    "2.请假文档（服务器有问题，我有时间再修，你要请假文档可以直接找我（丁）要）")
+                    "2.请假文档")
             return
         }
 
@@ -588,6 +594,16 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                                     eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
                                             "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
                                             leaveDatasEntity.content)
+
+                                    eventPrivateMessage.httpApi.sendPrivateMsg(程碧勇的qq, "" +
+                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                            leaveDatasEntity.content)
+
+                                    eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
+                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                            leaveDatasEntity.content)
+
+
                                     val stringBuilder = StringBuilder()
                                     stringBuilder.append("【${assistantStudent.name}】")
                                     stringBuilder.append("临时请假，请各位老师注意")
@@ -602,8 +618,19 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                                 eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
                                         "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
                                         leaveDatasEntity.content)
+
+                                eventPrivateMessage.httpApi.sendPrivateMsg(程碧勇的qq, "" +
+                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                        leaveDatasEntity.content)
+
+  eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
+                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                                        leaveDatasEntity.content)
+
+
                             }
                             leaveQueue.remove(assistantStudent.name)
+                            createExcel()
                             return@leaveProcess
                         }
 

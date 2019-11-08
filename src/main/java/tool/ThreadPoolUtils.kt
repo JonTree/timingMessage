@@ -13,7 +13,9 @@ object ThreadPoolUtils {
 
 
     fun execute(task: ()->Unit) {
-        threadPoolExecutor.execute { task }
+        threadPoolExecutor.execute {
+            task.invoke()
+        }
     }
 
     //一个有返回值的执行方法
@@ -23,6 +25,4 @@ object ThreadPoolUtils {
         return futureTask
     }
 
-
-    //一个可以更新UI的执行方法
 }

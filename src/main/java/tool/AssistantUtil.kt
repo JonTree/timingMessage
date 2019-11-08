@@ -53,13 +53,11 @@ object AssistantUtil {
         val format = SimpleDateFormat("yyyy-MM-dd")
         val c = Calendar.getInstance()
         c.time = format.parse(pTime)
-        var dayForWeek = 0
-        dayForWeek = if (c.get(Calendar.DAY_OF_WEEK) == 1) {
+        return if (c.get(Calendar.DAY_OF_WEEK) == 1) {
             7
         } else {
             c.get(Calendar.DAY_OF_WEEK) - 1
         }
-        return dayForWeek
     }
 
 
