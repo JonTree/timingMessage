@@ -114,7 +114,7 @@ private fun laboratoryAssistant(bot: PicqBotX, group: Long) {
                     onDutyStaffLocationAndInformationAdded("实验室", stringBuilder, splitLine, students)
                     atTheEndOfTheDutyMessage(stringBuilder)
                     icqHttpApi.sendGroupMsg(group, stringBuilder.toString())
-                    icqHttpApi.sendGroupMsg(group, "各位值班的同学，到岗后，需要检查各个实验室是否存在安全隐患、各个实验电脑的配件是否缺失、并将位置上的垃圾收拾干净，并将每次值班检查情况在群里反馈一下，以便实验室老师和其他值班同学了解情况，有问题及时反馈，谢谢！\n")
+                    icqHttpApi.sendGroupMsg(group, "请值班的同学注意，到岗后，你们优先将没有上课的教室的讲台整理一下，将讲台桌面和座椅灰尘打扫一下，并将物品摆放整齐，谢谢！\n")
                     icqHttpApi.sendGroupMsg(451094615, stringBuilder.toString())//测试群
                     icqHttpApi.sendGroupMsg(451094615, "请值班的同学注意，每次值班时，请优先将没有上课的教室的讲台整理一下，将讲台桌面上的灰尘和教师座椅的灰尘打扫一下，并将物品摆放整齐，谢谢！\n")//测试群
                     lookingForTheTreatmentOfThisShift(listOf("实验室"), time, dayForTime, icqHttpApi, group)
