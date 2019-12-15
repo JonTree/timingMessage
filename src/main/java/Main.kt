@@ -23,6 +23,8 @@ const val splitLine = "-------------------\n"
 
 val 实验室助理群 = 436641186.toLong()
 val 其他助理群 = 286199556.toLong()
+val 寝室群 = 859805886.toLong()
+
 
 val currentDutyPersons = mutableListOf<String>()
 
@@ -260,7 +262,7 @@ private fun lookingForTheTreatmentOfThisShift(nameList: List<String>, time: Stri
  */
 private fun atTheEndOfTheDutyMessage(stringBuilder: java.lang.StringBuilder) {
     stringBuilder.append("请相应同学按时到达,如有事不能来请【提前】【提前】【提前】私聊机器人请假（重要的事说三遍）" +
-            "向机器人发送任意私聊消息即可得到请假文本格式")
+            "向机器人发送任意私聊消息即可得到请假文本格式，若未能提前请假的将不能在群里通知，请各位老师自行在【http://139.196.143.240/leave/record/#/】查看")
 }
 
 /**
