@@ -275,7 +275,7 @@ public class MFile {
         int len = 0;
         while ((len = inStream.read(buffer)) != -1) {
             outStream.write(buffer, 0, len);
-        }
+    }
         byte[] data = outStream.toByteArray();
         return new String(data);
     }

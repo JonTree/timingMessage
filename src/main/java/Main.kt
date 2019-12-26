@@ -1,5 +1,3 @@
-@file:Suppress("NAME_SHADOWING")
-
 import bean.AssistantStudent
 import bean.CountData
 import bean.EntertainmentBanBean
