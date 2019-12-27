@@ -1,9 +1,6 @@
 package listen
 
 import bean.*
-import tool.AssistantUtil
-import tool.FileUtils
-import tool.ThreadPoolUtils
 import cc.moecraft.icq.event.EventHandler
 import cc.moecraft.icq.event.IcqListener
 import cc.moecraft.icq.event.events.message.EventPrivateMessage
@@ -14,7 +11,7 @@ import java.util.*
 import java.util.regex.Pattern
 import kotlin.collections.HashMap
 import cc.moecraft.icq.event.events.message.EventGroupMessage
-import tool.MFile
+import tool.*
 import java.io.File
 import java.lang.Exception
 import java.lang.StringBuilder
@@ -494,7 +491,6 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         val p = Pattern.compile("请假人学号：.*[0-9]+.*\r*\n请假事由：.+\r*\n请假班次：20..年..月..日第[1357][2468]节课.*")
         val m = p.matcher(eventPrivateMessage.message)
         if (m.matches()) {
-            var student: AssistantStudent? = null
             val mmS = Pattern
                     .compile("[0-9]+")
                     .matcher(eventPrivateMessage.message.substringAfter("请假人学号：")
@@ -504,34 +500,24 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             val mTime = eventPrivateMessage.message.substringAfter("\n请假班次：")
             val mC = eventPrivateMessage.message.substringAfter("请假事由：").substringBefore("\n请假班次：")
             val mContent = "${mTime}时间段值班请假，事由：${mC}"
-            AssistantUtil.assistantDateList.forEach {
-                if (it.value.studentID == mStudentID) {
-                    student = it.value
-                    return@forEach
+            //Sql
+            val resultSet = SqlUtil.statement.executeQuery("select * from assistantstudent  where studentId=${mStudentID};")
+            if (resultSet.first()) {
+                val leaveDatasEntity = LeaveDataBean.LeaveDatasEntity().apply {
+                    name = resultSet.getString("name")
+                    timestamp = "管理人员补登"
+                    content = mContent
+                    studentID = resultSet.getLong("studentId").toString()
+                    type = resultSet.getString("type")
+                    leaveTime = mTime
                 }
-            }
-            if (student == null) {
+                insertLeaveData(leaveDatasEntity)
+                eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
+                        "${leaveDatasEntity.name}的请假记录补登成功")
+                return
+            }else{
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                         "未查到该学生，请检查学号是否输入正确，或者该学生学号未加入配置文档")
-            } else {
-                val leaveDatasEntity = LeaveDataBean.LeaveDatasEntity().apply {
-                    student?.let {
-                        name = it.name
-                        timestamp = "管理人员补登"
-                        content = mContent
-                        studentID = it.studentID
-                        type = it.type
-                        leaveTime = mTime
-                    }
-                }
-
-                val gson = Gson()
-                AssistantUtil.leaveDataBean.leaveDatas.add(leaveDatasEntity)
-                FileUtils.writeFile(gson.toJson(AssistantUtil.leaveDataBean))
-                eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
-                        "${student?.name}的请假记录补登成功")
-
-                return
             }
         } else {
             val p2 = Pattern.compile("请假人学号.+\r*请假事由.+\r*请假班次.+")
@@ -673,8 +659,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 }
 
                 val leaveQueueMessage = LeaveQueueMessage(assistantStudent.name) {
-                    AssistantUtil.leaveDataBean.leaveDatas.add(leaveDatasEntity)
-                    FileUtils.writeFile(gson.toJson(AssistantUtil.leaveDataBean))
+                    insertLeaveData(leaveDatasEntity)
                     eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "请假成功")
                     leaveDatasEntity
                 }
@@ -717,6 +702,13 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             }
         }
 
+    }
+
+    private fun insertLeaveData(leaveDatasEntity: LeaveDataBean.LeaveDatasEntity) {
+        val sql = leaveDatasEntity.let {
+            "insert into leavebot.leavedata (studentId, type, name, content, leaveTime,time) values (${it.studentID},'${it.type}','${it.name}','${it.content}','${it.leaveTime}','${it.timestamp}');"
+        }
+        SqlUtil.statement.execute(sql)
     }
 
     /**

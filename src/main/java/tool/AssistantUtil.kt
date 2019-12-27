@@ -15,16 +15,9 @@ object AssistantUtil {
     val schoolRollWatchList = HashMap<Int, MutableList<String>>()//学籍办
     val academicWorkerWatchList = HashMap<Int, MutableList<String>>()//学工办
     val assistantDateList = HashMap<String, AssistantStudent>()
-    var leaveDataBean: LeaveDataBean = LeaveDataBean()
 
 
     init {
-        val gson = Gson()
-        val date = FileUtils.readFile()
-       if (date.isNotEmpty()) {
-           leaveDataBean =  gson.fromJson<LeaveDataBean>(date, LeaveDataBean::class.java)?: LeaveDataBean()
-        }
-
         for (i in 1..5) {
             for (j in 1..4) {
                 laboratoryWatchList["$i$j".toInt()] = mutableListOf()

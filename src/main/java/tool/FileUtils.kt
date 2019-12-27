@@ -94,14 +94,13 @@ object FileUtils {
 
 
     fun readStudentDataExcel() {
+        SqlUtil.statement.execute("delete from assistantstudent")
         val filePath = """Data/StudentsDate.xls"""
-
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
         val fileSystem = POIFSFileSystem(bufferedInputStream)
         val workbook = HSSFWorkbook(fileSystem)
         val sheet = workbook.getSheetAt(0)
-
         val lastRowIndex = sheet.lastRowNum
         for (i in 1..lastRowIndex) {
             val row = sheet.getRow(i) ?: break
@@ -115,18 +114,20 @@ object FileUtils {
             }
             if (是否记录本行) {
                 row.getCell(2)?.let {
-                    AssistantUtil.assistantDateList[it.stringCellValue] =
-                            AssistantStudent().apply {
-                                for (j in 0 until lastCellNum) {
-                                    row.getCell(j)?.let {
-                                        val p = Pattern.compile("[\\u2E80-\\u9FFF0-9a-zA-Z]+")
-                                        val m = p.matcher(it.stringCellValue)
-                                        if (m.find()) {
-                                            this[j] = m.group(0)
-                                        }
-                                    }
+                    val assistantStudent = AssistantStudent().apply {
+                        for (j in 0 until lastCellNum) {
+                            row.getCell(j)?.let {
+                                val p = Pattern.compile("[\\u2E80-\\u9FFF0-9a-zA-Z]+")
+                                val m = p.matcher(it.stringCellValue)
+                                if (m.find()) {
+                                    this[j] = m.group(0)
                                 }
                             }
+                        }
+                    }
+                    AssistantUtil.assistantDateList[it.stringCellValue] =assistantStudent
+                    val sql = "insert into assistantstudent (name, studentId, type, phoneNumber, qqNumber) values ('${assistantStudent.name}',${assistantStudent.studentID},'${assistantStudent.type}',${assistantStudent.phoneNumber},${assistantStudent.qqNumber})"
+                    SqlUtil.statement.execute(sql)
                 }
             }
         }
@@ -147,17 +148,18 @@ object FileUtils {
         row.createCell(3).setCellValue("事由")
         row.createCell(4).setCellValue("请假班次")
         row.createCell(5).setCellValue("何时请的假")
-
-
-        for (i in AssistantUtil.leaveDataBean.leaveDatas) {
-            val row1 = sheet.createRow(AssistantUtil.leaveDataBean.leaveDatas.indexOf(i) + 1)
-            row1.createCell(0).setCellValue(i.type)
-            row1.createCell(1).setCellValue(i.studentID)
-            row1.createCell(2).setCellValue(i.name)
-            row1.createCell(3).setCellValue(i.content.substringAfter("节课时间段值班请假").substring(4))
-            row1.createCell(4).setCellValue(i.leaveTime)
-            row1.createCell(5).setCellValue(i.timestamp)
-
+        val sql = "select * from leavedata;"
+        val resultSet =  SqlUtil.statement.executeQuery(sql)
+        var i = 0
+        while (resultSet.next()) {
+            val row1 = sheet.createRow(i + 1)
+            row1.createCell(0).setCellValue(resultSet.getString("type"))
+            row1.createCell(1).setCellValue(resultSet.getLong("studentId").toString())
+            row1.createCell(2).setCellValue(resultSet.getString("name"))
+            row1.createCell(3).setCellValue(resultSet.getString("content").substringAfter("节课时间段值班请假").substring(4))
+            row1.createCell(4).setCellValue(resultSet.getString("leaveTime"))
+            row1.createCell(5).setCellValue(resultSet.getString("time"))
+            i++
         }
 
         // 单元格样式

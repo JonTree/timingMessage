@@ -9,6 +9,8 @@ import com.google.gson.reflect.TypeToken
 import listen.*
 import tool.AssistantUtil
 import tool.MFile
+import tool.SqlUtil
+import java.sql.ResultSet
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParsePosition
@@ -51,7 +53,7 @@ fun main() {
         badRepeatCount = countData.badRepeatCount
         repeatCount = countData.repeatCount
     }
-    laboratoryAssistant(bot, 实验室助理群)
+//    laboratoryAssistant(bot, 实验室助理群)
     otherAssistant(bot, 其他助理群)
     bot.eventManager.registerListeners(
             AskForLeaveEventPrivateMessage()
@@ -195,8 +197,8 @@ private fun otherAssistant(bot: PicqBotX, group: Long) {
 private fun initializeCurrentData(): Triple<String, Int, Int> {
     Thread.sleep(2000)
     val date = Date()// 获取当前时间
-//    val time = "2019-10-22 13:45:00"//测试语句
-    val time = dateFormat.format(date)
+    val time = "2019-12-25 16:00:00"//测试语句
+//    val time = dateFormat.format(date)
 //    val dayForWeek = 2//测试语句
 //    val dayForTime = 2//测试语句
     val dayForWeek = AssistantUtil.dayForWeek(time.substringBefore(" "))
@@ -230,23 +232,20 @@ private fun unattendedProcessing(time: String, sentTime: String, icqHttpApi: Icq
  * 寻找此班次请假的处理
  */
 private fun lookingForTheTreatmentOfThisShift(nameList: List<String>, time: String, dayForTime: Int, icqHttpApi: IcqHttpApi, group: Long) {
-    val stringBuilder2 = StringBuilder()
-    AssistantUtil.leaveDataBean.leaveDatas.forEach { leaveDatasEntity ->
-        val lTime = SimpleDateFormat("yyyy年MM月dd日").parse(leaveDatasEntity.content.substringBefore("第"), ParsePosition(0))?.time
-                ?: 0
-        val nTime = SimpleDateFormat("yyyy-MM-dd").parse(time.substringBefore(" "), ParsePosition(0))?.time
-                ?: 0
-        if (nTime == lTime) {
-            if (digitalConversion(leaveDatasEntity.content.substringAfter("日第").substringBefore("节课"))
-                    == dayForTime) {
-                nameList.forEach AAA@{
-                    if (leaveDatasEntity.type.substringBefore("助理") == it) {
-                        stringBuilder2.append("【${leaveDatasEntity.name}】")
-                        return@AAA
-                    }
-                }
-            }
+    val data = "${SimpleDateFormat("yyyy年MM月dd日").format(Date())}第${digitalNumConversion(dayForTime)}节课"
+//    val data = "2019年12月25日第${digitalNumConversion(dayForTime)}节课"//测试语句
+    var sql = "select * from leaveData where leaveData.leaveTime = '${data}' and leaveData.type in ("
+    nameList.forEach {
+        sql+="'${it}助理'"
+        if (nameList.indexOf(it) != nameList.lastIndex) {
+            sql += ","
         }
+    }
+    sql+=");"
+    val resultSet =  SqlUtil.statement.executeQuery(sql)
+    val stringBuilder2 = StringBuilder()
+    while (resultSet.next()) {
+        stringBuilder2.append("【${resultSet.getString("name")}】")
     }
     if (stringBuilder2.isNotEmpty()) {
         stringBuilder2.append("有事请假，请各位老师注意")
@@ -289,5 +288,12 @@ fun digitalConversion(str: String): Int = when (str) {
     "56" -> 3
     "78" -> 4
     else -> 0
+}
+fun digitalNumConversion(num: Int): String = when (num) {
+    1 -> "12"
+    2 -> "34"
+    3 -> "56"
+    4 -> "78"
+    else -> "00"
 }
 
