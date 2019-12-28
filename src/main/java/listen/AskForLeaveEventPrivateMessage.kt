@@ -1,37 +1,23 @@
 package listen
 
-import bean.*
+import bean.AssistantStudent
+import bean.LeaveDataBean
+import bean.LeaveQueueMessage
 import cc.moecraft.icq.event.EventHandler
 import cc.moecraft.icq.event.IcqListener
 import cc.moecraft.icq.event.events.message.EventPrivateMessage
-import com.google.gson.Gson
 import tool.FileUtils.createExcel
+import tool.SqlUtil
+import tool.ThreadPoolUtils
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.regex.Pattern
 import kotlin.collections.HashMap
-import cc.moecraft.icq.event.events.message.EventGroupMessage
-import tool.*
-import java.io.File
-import java.lang.Exception
-import java.lang.StringBuilder
-import java.net.URLEncoder
-import kotlin.random.asKotlinRandom
-
-
-var forbiddenKeywordList = mutableListOf<String>()
-var entertainmentMessageRankingList = LinkedList<EntertainmentBanBean>()
-
-var repeatCount = 6
-var badRepeatCount = 4
 
 class AskForLeaveEventPrivateMessage : IcqListener() {
 
     private val leaveQueue = HashMap<String, LeaveQueueMessage>()
-
-    //关键词添加消息队列
-    private val keywordsAddMessageQueue = HashMap<Long, KeywordMessage>()
-
 
     val 刘星的QQ = 1623044256.toLong()
     val 刘旭的QQ = 2108372936.toLong()
@@ -39,406 +25,22 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
     val 杨天的qq = 1049895891.toLong()
     val 我的qq = 1246634075.toLong()
 
-    //关键字添加者
-    private val keywordAdder = listOf(
-            1044805408.toLong(),
-            1142013327.toLong(),
-            897598260.toLong(),
-            1246634075.toLong(),
-            619750063.toLong(),
-            815024038.toLong(),
-            844742916.toLong()
-    )
-
 
     @EventHandler
     fun saveTheLeaveEvent(eventPrivateMessage: EventPrivateMessage) {
-        //是否是关键字添加者
-        var isItAKeywordAdder = false
-        for (i in keywordAdder) {
-            isItAKeywordAdder = (eventPrivateMessage.senderId == i)
-            if (isItAKeywordAdder) {
-                break
-            }
-        }
-        if (isItAKeywordAdder) {
-            keywordAdderMessageProcessing(eventPrivateMessage)
-        } else {
-            助理群机器人(eventPrivateMessage)
-        }
-        if (我的qq == eventPrivateMessage.senderId) {
-            助理群机器人(eventPrivateMessage)
-        }
+        assistantGroupRobot(eventPrivateMessage)
     }
 
-    private fun 助理群机器人(eventPrivateMessage: EventPrivateMessage) {
+    /**
+     * 助理群机器人
+     */
+    private fun assistantGroupRobot(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.message) {
             "请假文档" -> processingDocumentRequestMessage(eventPrivateMessage)
             "补登请假" -> handlingTheLeaveRequestText(eventPrivateMessage)
             else -> leaveProcess(eventPrivateMessage)
         }
     }
-
-
-    //恶劣复读消息收集
-    val badSingleRepeat = LinkedList<RepeatData>()
-//    val group = 451094615.toLong()//哒哒群
-    val group = 483100546.toLong()//安卓群
-    //    val group = 913874135.toLong()//测试群
-
-    //关键词禁言
-    @EventHandler
-    fun keyWordsBan(eventGroupMessage: EventGroupMessage) {
-        if (eventGroupMessage.groupId == group) {
-            if (entertainmentBannedNumberChangeCommand(eventGroupMessage)) return
-            if (badRepeatingNumberChanges(eventGroupMessage)) return
-            if (functionCommandProcessing(eventGroupMessage)) return
-            //搜索引擎
-            if (searchEngine(eventGroupMessage)) return
-
-            if (sealedList(eventGroupMessage)) return
-            //恶劣禁言
-            if (severeProhibition(eventGroupMessage)) return
-
-            entertainmentBanProcessing(eventGroupMessage)
-            //禁言关键字List
-            sensitiveKeywordProcessing(eventGroupMessage)
-        }
-    }
-
-    /**
-     * 恶劣禁言处理
-     */
-    private fun severeProhibition(eventGroupMessage: EventGroupMessage): Boolean {
-        badSingleRepeat.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
-        if (badSingleRepeat.size > 1) {
-            return if (badSingleRepeat[0].qqnum == badSingleRepeat.last.qqnum && badSingleRepeat[0].str == badSingleRepeat.last.str) {
-                if (badSingleRepeat.size >= badRepeatCount) {
-                    eventGroupMessage.httpApi.setGroupBan(group, badSingleRepeat[0].qqnum, 60 * 60)
-                    eventGroupMessage.httpApi.sendGroupMsg(group, "[CQ:at,qq=${badSingleRepeat[0].qqnum}]恶劣复读")
-                    badSingleRepeat.clear()
-                }
-                true
-            } else {
-                badSingleRepeat.clear()
-                false
-            }
-        }
-        return false
-    }
-
-    /**
-     * 恶劣复读条数更改
-     */
-    private fun badRepeatingNumberChanges(eventGroupMessage: EventGroupMessage): Boolean {
-        val p = Pattern.compile("#恶劣复读禁言条数.")
-        val m = p.matcher(eventGroupMessage.message)
-        if (m.lookingAt()) {
-            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
-                val str = eventGroupMessage.message.substringAfter("#恶劣复读禁言条数").substring(1)
-                val mp = Pattern.compile("\\d+")
-                val mm = mp.matcher(str)
-                if (mm.find()) {
-                    val count = mm.group(0).toInt()
-                    if (count in 4..59) {
-                        badRepeatCount = count
-                        eventGroupMessage.respond("设置成功:$badRepeatCount")
-                        MFile.saveToFile("Data/复读条数设置.txt", Gson().toJson(CountData(repeatCount, badRepeatCount)))
-                    } else {
-                        eventGroupMessage.respond("请设置4到50之间的数")
-                    }
-                }
-            }
-            return true
-        }
-        return false
-    }
-
-    /**
-     * 娱乐禁言条数更改命令
-     */
-    private fun entertainmentBannedNumberChangeCommand(eventGroupMessage: EventGroupMessage): Boolean {
-        val p = Pattern.compile("#娱乐禁言条数.")
-        val m = p.matcher(eventGroupMessage.message)
-        if (m.lookingAt()) {
-            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
-                val str = eventGroupMessage.message.substringAfter("#娱乐禁言条数").substring(1)
-                val mp = Pattern.compile("\\d+")
-                val mm = mp.matcher(str)
-                if (mm.find()) {
-                    val count = mm.group(0).toInt()
-                    if (count in 4..50) {
-                        repeatCount = count
-                        eventGroupMessage.respond("设置成功:$repeatCount")
-                        MFile.saveToFile("Data/复读条数设置.txt", Gson().toJson(CountData(repeatCount, badRepeatCount)))
-                    } else {
-                        eventGroupMessage.respond("请设置4到50之间的数")
-                    }
-                }
-            } else {
-                eventGroupMessage.respond("[CQ:at,qq=${eventGroupMessage.senderId}] 您不配")
-            }
-            return true
-        }
-        return false
-    }
-
-    /**
-     * 敏感关键字处理
-     */
-    private fun sensitiveKeywordProcessing(eventGroupMessage: EventGroupMessage) {
-        forbiddenKeywordList.forEach {
-            val p = Pattern.compile(it,Pattern.CASE_INSENSITIVE)
-            val m = p.matcher(eventGroupMessage.message)
-            if (m.find()) {
-                eventGroupMessage.recall()
-                eventGroupMessage.ban(60)
-            }
-        }
-    }
-
-    private fun searchEngine(eventGroupMessage: EventGroupMessage): Boolean {
-        val p = Pattern.compile("bing搜索[:：]")
-        val m = p.matcher(eventGroupMessage.message)
-        if (m.lookingAt()) {
-            val str = eventGroupMessage.message.substringAfter("bing搜索").substring(1)
-            val url = "https://cn.bing.com/search?q=" + URLEncoder.encode(str, "UTF-8")
-            eventGroupMessage.respond(url)
-            return true
-        }
-
-        val p2 = Pattern.compile("csdn搜索[:：]")
-        val m2 = p2.matcher(eventGroupMessage.message)
-        if (m2.lookingAt()) {
-            val str = eventGroupMessage.message.substringAfter("csdn搜索").substring(1)
-            val url = "https://so.csdn.net/so/search/s.do?q=" + URLEncoder.encode(str, "UTF-8")
-            eventGroupMessage.respond(url)
-            return true
-        }
-
-        val p3 = Pattern.compile("百度搜索[:：]")
-        val m3 = p3.matcher(eventGroupMessage.message)
-        if (m3.lookingAt()) {
-            val str = eventGroupMessage.message.substringAfter("百度搜索").substring(1)
-            val url = "https://m.baidu.com/s?ie=utf-8&f=3&rsv_bp=1&rsv_idx=1&tn=baidu&wd=" + URLEncoder.encode(str, "UTF-8")
-            eventGroupMessage.respond(url)
-            return true
-        }
-
-        val p4 = Pattern.compile("掘金搜索[:：]")
-        val m4 = p4.matcher(eventGroupMessage.message)
-        if (m4.lookingAt()) {
-            val str = eventGroupMessage.message.substringAfter("掘金搜索").substring(1)
-            val url = "https://juejin.im/search?query=" + URLEncoder.encode(str, "UTF-8") + "&type=all"
-            eventGroupMessage.respond(url)
-            return true
-        }
-        return false
-    }
-
-    /**
-     * 封神榜命令
-     */
-    private fun sealedList(eventGroupMessage: EventGroupMessage): Boolean {
-        if (eventGroupMessage.message == "#封神榜") {
-            if (entertainmentMessageRankingList.size == 0) {
-                eventGroupMessage.respond("还没人复读被禁言呢！慌啥？？")
-            } else {
-                var str = "封神榜\n" +
-                        "***************\n"
-
-                for (i in 0 until entertainmentMessageRankingList.size) {
-                    str += "第${i + 1}名：${eventGroupMessage.getGroupUser(entertainmentMessageRankingList[i].qqnum).info.card}\n" +
-                            "次数：${entertainmentMessageRankingList[i].count}\n"
-                    str += "***************\n"
-                    if (i == 4) {
-                        break
-                    }
-                }
-                eventGroupMessage.respond(str)
-            }
-            return true
-        }
-        return false
-    }
-
-
-    //娱乐复读消息收集
-    private val repeatBanList = LinkedList<RepeatData>()
-    private val repeatedBannedMinutes = LinkedList<EntertainmentBanBean>()
-    private var isStartRepeating = false
-    //娱乐禁言处理
-    private fun entertainmentBanProcessing(eventGroupMessage: EventGroupMessage) {
-        //将当前消息载入
-        repeatBanList.add(RepeatData(eventGroupMessage.senderId, eventGroupMessage.message))
-        //判断消息是否为2条即以上
-        if (repeatBanList.size > 1) {
-            if (repeatBanList[0].str == repeatBanList.last.str) {//判断是否为复读消息,不是则清空
-                if (repeatBanList.size >= repeatCount) {//判断复读是否超过了设定值
-                    isStartRepeating = true
-                    val random = Random()
-                    val count = random.asKotlinRandom().nextInt(repeatBanList.size)//随机抽取
-                    var isExist = false
-                    var index = 0
-                    var doesItExist = false
-                    var entertainmentBanBean: EntertainmentBanBean? = null
-                    entertainmentMessageRankingList.forEach {
-                        if (repeatBanList[count].qqnum == it.qqnum) {
-                            doesItExist = true
-                            entertainmentBanBean = it
-                            return@forEach
-                        }
-                    }
-                    repeatedBannedMinutes.forEach {
-                        if (repeatBanList[count].qqnum == it.qqnum) {
-                            isExist = true
-                            it.count++
-                            发送娱乐禁言消息(eventGroupMessage, count, entertainmentBanBean)
-                            index = repeatedBannedMinutes.indexOf(it)
-                            return@forEach
-                        }
-                    }
-                    if (!isExist) {
-                        repeatedBannedMinutes.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
-                        发送娱乐禁言消息(eventGroupMessage, count, entertainmentBanBean)
-                        index = repeatedBannedMinutes.lastIndex
-                    }
-                    saveToLeaderboard(doesItExist, entertainmentBanBean, count)
-                }
-            } else {
-                if (isStartRepeating) {
-                    repeatedBannedMinutes.sortByDescending { it.count }
-                    var str = "" +
-                            "本轮禁言分钟数排行：\n"
-                    for (i in 0 until repeatedBannedMinutes.size) {
-                        str += "" +
-                                "***第${i + 1}名${repeatedBannedMinutes[i].count}分钟***\n" +
-                                "${eventGroupMessage.getGroupUser(repeatedBannedMinutes[i].qqnum).info.card}\n" +
-                                "******************\n"
-                    }
-                    eventGroupMessage.respond(str)
-                    isStartRepeating = false
-                }
-                repeatedBannedMinutes.clear()
-                repeatBanList.clear()
-            }
-        }
-    }
-
-    private fun 发送娱乐禁言消息(eventGroupMessage: EventGroupMessage, count: Int, entertainmentBanBean: EntertainmentBanBean?) {
-        eventGroupMessage.httpApi.setGroupBan(group, repeatBanList[count].qqnum, (60 * (entertainmentBanBean?.let { ++it.count }
-                ?: 1)).toLong())
-        entertainmentMessageRankingList.sortByDescending { it.count }
-        entertainmentBanBean?.let {
-            eventGroupMessage.httpApi.sendPrivateMsg(repeatBanList[count].qqnum, "你的安卓群内每次被禁言时长增加到${it.count}分钟，" +
-                    "排名为${entertainmentMessageRankingList.indexOf(it)+1},请好好学习技术不要复读")
-        }
-
-    }
-
-    /**
-     * 保存至排行榜
-     */
-    private fun saveToLeaderboard(doesItExist: Boolean, entertainmentBanBean: EntertainmentBanBean?, count: Int): EntertainmentBanBean? {
-        if (!doesItExist) {
-            entertainmentMessageRankingList.add(EntertainmentBanBean(repeatBanList[count].qqnum, 1))
-        }
-
-        MFile.saveToFile("Data/娱乐禁言排行榜.txt", Gson().toJson(entertainmentMessageRankingList))
-        return entertainmentBanBean
-    }
-
-    //功能命令处理
-    private fun functionCommandProcessing(eventGroupMessage: EventGroupMessage): Boolean {
-        if (eventGroupMessage.message == "功能") {
-//            if (eventGroupMessage.isAdmin(eventGroupMessage.senderId)) {
-            eventGroupMessage.httpApi.sendPrivateMsg(eventGroupMessage.senderId, "" +
-                    "1.百度搜索：XXXX\n" +
-                    "2.bing搜索：XXXX\n" +
-                    "3.csdn搜索：XXXX\n" +
-                    "4.掘金搜索：XXXX(推荐这个)\n" +
-                    "5.#恶劣复读禁言条数:XXXX(需要管理员,目前${badRepeatCount}条单人复读当作恶劣复读，禁言一小时)\n" +
-                    "6.#娱乐禁言条数:XXXX(需要管理员，目前每复读${repeatCount} 条，随机抽一人增加自有复读时间，【并持续累加不清零，参与复读越多，每次禁言时间越长】)\n" +
-                    "7.群内有恶劣性敏感词禁言，并且会记录你发送这种铭感词的次数，到达一定数量，会踢出出群聊，请大家文明发言【和谐自由民主】\n" +
-                    "8.【娱乐】检测到复读抽取随机禁言大奖，并记录中奖次数\n" +
-                    "9.【娱乐】随机禁言排行榜发送（#封神榜）\n" +
-                    "【以上所有命令均需要在群里发送】\n" +
-                    ""
-            )
-            eventGroupMessage.respond("[CQ:at,qq=${eventGroupMessage.senderId}] 私发给你了，自己康康")
-//            }
-            return true
-        }
-        return false
-    }
-
-
-    //关键字添加者消息处理
-    private fun keywordAdderMessageProcessing(eventPrivateMessage: EventPrivateMessage) {
-        if (eventPrivateMessage.message == "是") {
-            var keywordMessage: KeywordMessage? = null
-            keywordsAddMessageQueue.forEach {
-                if (eventPrivateMessage.senderId == it.key) {
-                    keywordMessage = it.value
-                }
-            }
-            keywordMessage?.lambda?.invoke()
-            return
-        }
-
-        forbiddenKeywordList.forEach {
-            if (it == eventPrivateMessage.message) {
-                forbiddenKeywordList.remove(it)
-                eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "删除成功\n" +
-                        "$forbiddenKeywordList")
-                MFile.saveToFile("Data/禁言关键词.txt", Gson().toJson(forbiddenKeywordList))
-                return
-            }
-        }
-
-
-        val p = Pattern.compile("禁言关键字.")
-        val m = p.matcher(eventPrivateMessage.message)
-        if (m.lookingAt()) {
-            val str = eventPrivateMessage.message.substringAfter("禁言关键字").substring(1)
-            eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
-                    "你所添加的关键词是：$str\n" +
-                    "是否添加\n" +
-                    "请在3分钟之内回复【是】\n")
-            val date = Date()
-            //禁言消息
-            val forbiddenMessage = KeywordMessage(eventPrivateMessage.senderId) {
-                val cDate = Date()
-                if ((cDate.time - date.time) > 1000 * 60 * 3) {
-                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "时间超过")
-                    keywordsAddMessageQueue.remove(eventPrivateMessage.senderId)
-                } else {
-                    forbiddenKeywordList.add(str)
-                    eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "添加成功\n" +
-                            "$forbiddenKeywordList")
-                    MFile.saveToFile("Data/禁言关键词.txt", Gson().toJson(forbiddenKeywordList))
-                    keywordsAddMessageQueue.remove(eventPrivateMessage.senderId)
-                }
-            }
-            keywordsAddMessageQueue[eventPrivateMessage.senderId] = forbiddenMessage
-            return
-        }
-        eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
-                "现在有以下关键字：\n" +
-                "$forbiddenKeywordList\n" +
-                "*********************\n" +
-                "直接回复其中的关键字，即可删除\n" +
-                "*********************\n" +
-                "直接发送下面格式的即可添加关键字\n" +
-                "*********************\n" +
-                "禁言关键字:XXXXXXXXXX(XXX是内容)\n" +
-                "*********************\n" +
-                "建议直接复制下面的模板进行修改")
-        eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
-                "禁言关键字：")
-
-    }
-
 
     //处理补登请假提示文本
     private fun handlingTheLeaveRequestText(eventPrivateMessage: EventPrivateMessage) {
@@ -460,7 +62,9 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
         }
     }
 
-    //处理文档请求消息
+    /**
+     * 处理请求文档的请求
+     */
     private fun processingDocumentRequestMessage(eventPrivateMessage: EventPrivateMessage) {
         when (eventPrivateMessage.senderId) {
             刘旭的QQ, 刘星的QQ, 我的qq, 程碧勇的qq, 杨天的qq -> {
@@ -469,24 +73,29 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 try {
                     eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "正在导出数据，请稍等...")
                     file.delete()
-                    延迟发送下载链接(eventPrivateMessage)
+                    delaySendingDownloadLinks(eventPrivateMessage)
                 } catch (e: Exception) {
-                    延迟发送下载链接(eventPrivateMessage)
+                    delaySendingDownloadLinks(eventPrivateMessage)
                 }
             }
             else -> eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "对不起，你没有权限")
         }
     }
 
-    private fun 延迟发送下载链接(eventPrivateMessage: EventPrivateMessage) {
-        Thread.sleep(3000)
+    /**
+     * 延迟发送下载链接
+     */
+    private fun delaySendingDownloadLinks(eventPrivateMessage: EventPrivateMessage) {
+        Thread.sleep(2000)
         eventPrivateMessage.httpApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                 "http://139.196.143.240/leave/index.php")
     }
 
-    //请假流程
-    @Suppress("NAME_SHADOWING")
+    /**
+     * 请假流程
+     */
     private fun leaveProcess(eventPrivateMessage: EventPrivateMessage) {
+        val sqlUtil = SqlUtil()
         //补登请假
         val p = Pattern.compile("请假人学号：.*[0-9]+.*\r*\n请假事由：.+\r*\n请假班次：20..年..月..日第[1357][2468]节课.*")
         val m = p.matcher(eventPrivateMessage.message)
@@ -501,7 +110,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
             val mC = eventPrivateMessage.message.substringAfter("请假事由：").substringBefore("\n请假班次：")
             val mContent = "${mTime}时间段值班请假，事由：${mC}"
             //Sql
-            val resultSet = SqlUtil.statement.executeQuery("select * from assistantstudent  where studentId=${mStudentID};")
+            val resultSet = sqlUtil.statement.executeQuery("select * from assistantstudent  where studentId=${mStudentID};")
             if (resultSet.first()) {
                 val leaveDatasEntity = LeaveDataBean.LeaveDatasEntity().apply {
                     name = resultSet.getString("name")
@@ -515,7 +124,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                         "${leaveDatasEntity.name}的请假记录补登成功")
                 return
-            }else{
+            } else {
                 eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                         "未查到该学生，请检查学号是否输入正确，或者该学生学号未加入配置文档")
             }
@@ -532,9 +141,7 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
 
         //正常请假流程
-        val gson = Gson()
         val senderId = eventPrivateMessage.getSenderId()//获得发送消息的人的qq号
-//        val senderId = 3517746373//获得发送消息的人的qq号
 
         if (senderId == 刘旭的QQ) {
             eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "拒绝向帅气的辅导员提供服务。")
@@ -553,15 +160,18 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
 
         var student: AssistantStudent? = null
 
-
-        for (i in AssistantUtil.assistantDateList) {
-            if (i.key.isNotEmpty()) {//防止表格中没有名字的
-                if (i.value.qqNumber.replace(Regex("\\s"), "").toLong() == senderId) {
-                    student = i.value//若该学生为助理，则获取该学生的详细信息
-                    break
-                }
+        sqlUtil.statement.executeQuery("select * from assistantstudent where qqNumber = '${senderId}'").apply {
+            if (first()) {
+                val name = getString("name")
+                val studentId = getString("studentId")
+                val type = getString("type")
+                val phoneNumber = getString("phoneNumber")
+                val qqNumber = getString("qqNumber")
+                student = AssistantStudent(name, studentId, type, phoneNumber, qqNumber)
             }
         }
+
+
         student?.let { assistantStudent ->
             if ("是" == eventPrivateMessage.message) {
                 leaveQueue[assistantStudent.name]?.let {
@@ -581,27 +191,13 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                             if (today?.get(Calendar.DAY_OF_MONTH) == date?.get(Calendar.DAY_OF_MONTH)) {
                                 if (assistantStudent.type == "实验室助理") {
                                     val stringBuilder = StringBuilder()
-                                    eventPrivateMessage.httpApi.sendPrivateMsg(我的qq, "" +
-                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                            leaveDatasEntity.content)
+                                    sendNotify(eventPrivateMessage, leaveDatasEntity,我的qq)
                                     stringBuilder.append("【${assistantStudent.name}】")
                                     stringBuilder.append("临时请假，请各位老师注意\n")
                                     eventPrivateMessage.httpApi.sendGroupMsg(436641186, stringBuilder.toString())
                                     eventPrivateMessage.httpApi.sendGroupMsg(451094615, stringBuilder.toString())
                                 } else {
-                                    eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
-                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                            leaveDatasEntity.content)
-
-                                    eventPrivateMessage.httpApi.sendPrivateMsg(程碧勇的qq, "" +
-                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                            leaveDatasEntity.content)
-
-                                    eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
-                                            "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                            leaveDatasEntity.content)
-
-
+                                    sendNotify(eventPrivateMessage, leaveDatasEntity,刘星的QQ, 程碧勇的qq,杨天的qq)
                                     val stringBuilder = StringBuilder()
                                     stringBuilder.append("【${assistantStudent.name}】")
                                     stringBuilder.append("临时请假，请各位老师注意")
@@ -609,23 +205,9 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                                 }
                             }
                             if (assistantStudent.type == "实验室助理") {
-                                eventPrivateMessage.httpApi.sendPrivateMsg(我的qq, "" +
-                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                        leaveDatasEntity.content)
+                                sendNotify(eventPrivateMessage,leaveDatasEntity,我的qq)
                             } else {
-                                eventPrivateMessage.httpApi.sendPrivateMsg(刘星的QQ, "" +
-                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                        leaveDatasEntity.content)
-
-                                eventPrivateMessage.httpApi.sendPrivateMsg(程碧勇的qq, "" +
-                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                        leaveDatasEntity.content)
-
-                                eventPrivateMessage.httpApi.sendPrivateMsg(杨天的qq, "" +
-                                        "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
-                                        leaveDatasEntity.content)
-
-
+                                sendNotify(eventPrivateMessage, leaveDatasEntity,刘星的QQ, 程碧勇的qq,杨天的qq)
                             }
                             leaveQueue.remove(assistantStudent.name)
                             createExcel()
@@ -671,9 +253,9 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                     leaveQueue.remove(assistantStudent.name)
                 }
             } else {
-                val pattern = Pattern.compile(".*年.*月.*日第.*节课时间段值班请假.*事由")
-                val matcher = pattern.matcher(eventPrivateMessage.message)
-                if (matcher.find()) {
+                val pattern1 = Pattern.compile(".*年.*月.*日第.*节课时间段值班请假.*事由")
+                val matcher1 = pattern1.matcher(eventPrivateMessage.message)
+                if (matcher1.find()) {
                     eventPrivateMessage.bot.accountManager.nonAccountSpecifiedApi.sendPrivateMsg(eventPrivateMessage.senderId, "" +
                             "刚刚的请假正文貌似格式有点问题，按照标准复制改改吧！\n" +
                             "可能没有请假事由，或者日期有误")
@@ -701,34 +283,24 @@ class AskForLeaveEventPrivateMessage : IcqListener() {
                         "请给出合理事由，请假成功之后消息会被实时发送到管理者的qq里，若事由太过随意，会根据情况降低你的最终评价，从而影响时长或者每月补贴")
             }
         }
+        sqlUtil.close()
+    }
 
+    private fun sendNotify(eventPrivateMessage: EventPrivateMessage, leaveDatasEntity: LeaveDataBean.LeaveDatasEntity, vararg qqNums: Long) {
+        qqNums.forEach {
+            eventPrivateMessage.httpApi.sendPrivateMsg(it, "" +
+                    "${leaveDatasEntity.type}-${leaveDatasEntity.name}请假：\n\n" +
+                    leaveDatasEntity.content)
+        }
     }
 
     private fun insertLeaveData(leaveDatasEntity: LeaveDataBean.LeaveDatasEntity) {
+        val sqlUtil = SqlUtil()
         val sql = leaveDatasEntity.let {
             "insert into leavebot.leavedata (studentId, type, name, content, leaveTime,time) values (${it.studentID},'${it.type}','${it.name}','${it.content}','${it.leaveTime}','${it.timestamp}');"
         }
-        SqlUtil.statement.execute(sql)
-    }
-
-    /**
-         * 判断时间是否在时间段内
-         * 
-         * @param nowTime
-         * @param beginTime
-         * @param endTime
-         * @return
-         */
-    public fun belongCalendar(nowTime: Date, beginTime: Date, endTime: Date): Boolean {
-        val date = Calendar.getInstance();
-        date.time = nowTime;
-        val begin = Calendar.getInstance();
-        begin.time = beginTime;
-        val end = Calendar.getInstance();
-        end.time = endTime;
-        return if (date.after(begin) && date.before(end)) {
-            true;
-        } else nowTime.compareTo(beginTime) == 0 || nowTime.compareTo(endTime) == 0
+        sqlUtil.statement.execute(sql)
+        sqlUtil.close()
     }
 
     // 字符串 转 日期

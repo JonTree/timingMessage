@@ -4,31 +4,20 @@ import bean.AssistantStudent
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.poifs.filesystem.POIFSFileSystem
 import org.apache.poi.ss.usermodel.CellType
-import java.io.*
-import java.util.regex.Pattern
 import org.apache.poi.ss.usermodel.HorizontalAlignment
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.regex.Pattern
 
 
 object FileUtils {
-
-
     fun writeFile(content: String) {
-//        val currentDir = System.getProperty("user.dir") + "\\out"
         val currentDir = """Data"""
         val file = File(currentDir, "leaveData.txt")
         file.writeText(content)
-//        println(file.readText())
-
-//        //直接使用writer和outputstream
-//        val writer: Writer = file.writer()
-//        val outputStream: OutputStream = file.outputStream()
-//        val printWriter: PrintWriter = file.printWriter()
-
     }
-
-
-
-
     fun writeFileAdd() {
         val currentDir = System.getProperty("user.dir") + "\\out"
         val file = File(currentDir, "leaveData.txt")
@@ -39,62 +28,61 @@ object FileUtils {
     }
 
     fun readOnDutyDataExcel() {
+        val sqlUtil = SqlUtil()
         val filePath = """Data/OnDutyDate.xls"""
-
+        sqlUtil.statement.execute("delete from watchList")
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
         val fileSystem = POIFSFileSystem(bufferedInputStream)
         val workbook = HSSFWorkbook(fileSystem)
-
         for (sheetIndex in 0 until workbook.numberOfSheets) {
             val sheet = workbook.getSheetAt(sheetIndex)
-            val place = AssistantUtil.lookingForAPlaceToWork(sheet.sheetName)
-            place?.let {
-                val lastRowIndex = sheet.lastRowNum
-                val rowLimit = 2
-                var rowignore = 0
-                var turnIndex = 0
-                for (i in 2..lastRowIndex) {
-                    if (rowignore % rowLimit == 0) {
-                        turnIndex++
-                    }
-                    val row = sheet.getRow(i) ?: break
-                    val lastCellNum = row.lastCellNum
-                    var 是否记录本行 = false
-                    for (j in 1 until lastCellNum) {
-                        if (row.getCell(j) != null) {
-                            是否记录本行 = true
-                        }
-                        row.getCell(j)?.cellType = CellType.STRING
-                    }
-                    if (是否记录本行) {
-                        val limit = 3
-                        var ignore = 0
-                        var index = 1
-                        for (j in 1 until lastCellNum) {
-                            if (ignore % limit == 0) {
-                                val data = row.getCell(j).stringCellValue
-                                val p = Pattern.compile("[\\u2E80-\\u9FFF]+")
-                                val m = p.matcher(data)
-                                if (m.find()) {
-                                    val name = m.group(0)
-                                    place[("$index$turnIndex").toInt()]?.add(name)
-                                }
-                                index++
-                            }
-                            ignore++
-                        }
-                    }
-                    rowignore++
+            val lastRowIndex = sheet.lastRowNum
+            val rowLimit = 2
+            var rowignore = 0
+            var turnIndex = 0
+            for (i in 2..lastRowIndex) {
+                if (rowignore % rowLimit == 0) {
+                    turnIndex++
                 }
+                val row = sheet.getRow(i) ?: break
+                val lastCellNum = row.lastCellNum
+                var 是否记录本行 = false
+                for (j in 1 until lastCellNum) {
+                    if (row.getCell(j) != null) {
+                        是否记录本行 = true
+                    }
+                    row.getCell(j)?.cellType = CellType.STRING
+                }
+                if (是否记录本行) {
+                    val limit = 3
+                    var ignore = 0
+                    var index = 1
+                    for (j in 1 until lastCellNum) {
+                        if (ignore % limit == 0) {
+                            val data = row.getCell(j).stringCellValue
+                            val p = Pattern.compile("[\\u2E80-\\u9FFF]+")
+                            val m = p.matcher(data)
+                            if (m.find()) {
+                                val name = m.group(0)
+                                sqlUtil.statement.execute("insert into watchList (type, weekDay, timeTurn, name) values ('${sheet.sheetName}',${index},${turnIndex},'${name}');")
+                            }
+                            index++
+                        }
+                        ignore++
+                    }
+                }
+                rowignore++
             }
         }
         bufferedInputStream.close()
+        sqlUtil.close()
     }
 
 
     fun readStudentDataExcel() {
-        SqlUtil.statement.execute("delete from assistantstudent")
+        val sqlUtil = SqlUtil()
+        sqlUtil.statement.execute("delete from assistantstudent")
         val filePath = """Data/StudentsDate.xls"""
         val fileInputStream = FileInputStream(filePath)
         val bufferedInputStream = BufferedInputStream(fileInputStream)
@@ -125,20 +113,27 @@ object FileUtils {
                             }
                         }
                     }
-                    AssistantUtil.assistantDateList[it.stringCellValue] =assistantStudent
                     val sql = "insert into assistantstudent (name, studentId, type, phoneNumber, qqNumber) values ('${assistantStudent.name}',${assistantStudent.studentID},'${assistantStudent.type}',${assistantStudent.phoneNumber},${assistantStudent.qqNumber})"
-                    SqlUtil.statement.execute(sql)
+                    sqlUtil.statement.execute(sql)
                 }
             }
         }
         bufferedInputStream.close()
+        sqlUtil.close()
     }
 
 
     fun createExcel() {
-        val filePath = "C:/wamp64/www/leave/请假记录文档.xls"
+        val sqlUtil = SqlUtil()
+        val filePath = "Data/请假记录文档.xls"
         val file = File(filePath)
-        val outputStream = FileOutputStream(file)
+        val outputStream: FileOutputStream
+        try {
+            outputStream = FileOutputStream(file)
+        } catch (e: Exception) {
+            print(e.message)
+            return
+        }
         val workbook = HSSFWorkbook()
         val sheet = workbook.createSheet("Sheet1")
         val row = sheet.createRow(0)
@@ -148,8 +143,8 @@ object FileUtils {
         row.createCell(3).setCellValue("事由")
         row.createCell(4).setCellValue("请假班次")
         row.createCell(5).setCellValue("何时请的假")
-        val sql = "select * from leavedata;"
-        val resultSet =  SqlUtil.statement.executeQuery(sql)
+        val sql = "select * from leavedata order by STR_TO_DATE(leaveTime,'%Y年%m月%d日') desc;"
+        val resultSet = sqlUtil.statement.executeQuery(sql)
         var i = 0
         while (resultSet.next()) {
             val row1 = sheet.createRow(i + 1)
@@ -176,6 +171,7 @@ object FileUtils {
         workbook.setActiveSheet(0)
         workbook.write(outputStream)
         outputStream.close()
+        sqlUtil.close()
     }
 
 

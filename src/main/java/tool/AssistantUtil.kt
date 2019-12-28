@@ -1,46 +1,18 @@
 package tool
-import bean.AssistantStudent
-import bean.LeaveDataBean
-import com.google.gson.Gson
 import tool.FileUtils.readOnDutyDataExcel
-import java.text.SimpleDateFormat
 import tool.FileUtils.readStudentDataExcel
+import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.collections.HashMap
 
 
 object AssistantUtil {
-    val laboratoryWatchList = HashMap<Int, MutableList<String>>()//实验室
-    val collegeWatchList = HashMap<Int, MutableList<String>>()//院办
-    val schoolRollWatchList = HashMap<Int, MutableList<String>>()//学籍办
-    val academicWorkerWatchList = HashMap<Int, MutableList<String>>()//学工办
-    val assistantDateList = HashMap<String, AssistantStudent>()
-
-
     init {
-        for (i in 1..5) {
-            for (j in 1..4) {
-                laboratoryWatchList["$i$j".toInt()] = mutableListOf()
-                collegeWatchList["$i$j".toInt()] = mutableListOf()
-                schoolRollWatchList["$i$j".toInt()] = mutableListOf()
-                academicWorkerWatchList["$i$j".toInt()] = mutableListOf()
-            }
-        }
         //导入学生数据
         readStudentDataExcel()
         //导入学生班次数据
         readOnDutyDataExcel()
-
     }
 
-    fun lookingForAPlaceToWork(place:String)=
-            when(place){
-                "实验室助理" -> laboratoryWatchList
-                "院办助理" -> collegeWatchList
-                "学籍办助理" -> schoolRollWatchList
-                "学工办助理" -> academicWorkerWatchList
-                else -> null
-            }
 
     fun dayForWeek(pTime: String): Int {
         val format = SimpleDateFormat("yyyy-MM-dd")
@@ -73,6 +45,4 @@ object AssistantUtil {
             else -> null
         }
     }
-
-    fun determineIfItIsWithinTheTimePeriod(date:Date,startDate: Date,endDate: Date)= startDate.time < date.time&&endDate.time>date.time
 }
