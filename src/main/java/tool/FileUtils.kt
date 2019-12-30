@@ -4,9 +4,12 @@ import bean.AssistantStudent
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.poifs.filesystem.POIFSFileSystem
 import org.apache.poi.ss.usermodel.CellType
-import java.io.*
-import java.util.regex.Pattern
 import org.apache.poi.ss.usermodel.HorizontalAlignment
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.regex.Pattern
 
 
 object FileUtils {
@@ -135,7 +138,7 @@ object FileUtils {
 
 
     fun createExcel() {
-        val filePath = "C:/wamp64/www/leave/请假记录文档.xls"
+        val filePath = "/www/wwwroot/myweb/leave/请假记录文档.xls"
         val file = File(filePath)
         val outputStream = FileOutputStream(file)
         val workbook = HSSFWorkbook()

@@ -52,8 +52,8 @@ fun main() {
         badRepeatCount = countData.badRepeatCount
         repeatCount = countData.repeatCount
     }
-    laboratoryAssistant(bot, 实验室助理群)
-    otherAssistant(bot, 其他助理群)
+//    laboratoryAssistant(bot, 实验室助理群)
+//    otherAssistant(bot, 其他助理群)
     bot.eventManager.registerListeners(
             AskForLeaveEventPrivateMessage()
     )
